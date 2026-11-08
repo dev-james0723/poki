@@ -4,7 +4,8 @@ import { work, checkWork, stoppingReason } from './work.mjs';
 export const managementTools = new Set(['acquire_device', 'renew_device', 'release_device', 'cancel_device']);
 
 export class Coordination {
-  leases = new Map(); operations = new Set(); revisions = new Map(); scenes = new Map(); queue = Promise.resolve();
+  leases = new Map(); operations = new Set(); revisions = new Map(); scenes = new Map();
+  queues = new Map(); sessions = new WeakMap(); sessionCount = 0; identityGate = Promise.resolve();
   revision(id) { return this.revisions.get(id) ?? 0; }
   changed(id) { this.revisions.set(id, this.revision(id) + 1); }
   observeFrame(id, data) { const previous = this.scenes.get(id); if (previous && !previous.equals(data)) this.changed(id); this.scenes.set(id, data); }
@@ -57,6 +58,22 @@ export class Coordination {
     })();
     try { return await ctx.ending; } finally { ctx.ending = undefined; }
   }
+  sessionKey(ctx) {
+    const existing = this.sessions.get(ctx);
+    if (existing) return existing;
+    this.sessionCount += 1;
+    const key = `session:${this.sessionCount}`;
+    this.sessions.set(ctx, key);
+    return key;
+  }
+  // Chain onto one queue. The tail is recorded before the work runs, so the
+  // next caller on this key waits even if identification for a later call overlaps.
+  chain(key, fn) {
+    const previous = this.queues.get(key) ?? Promise.resolve();
+    const run = previous.then(fn, fn);
+    this.queues.set(key, run.catch(() => {}));
+    return run;
+  }
   call(ctx, name, args, requestSignal, requestId) {
     if (ctx.ending) return Promise.reject(new Error('Session cleanup is in progress.'));
     const controller = new AbortController();
@@ -66,20 +83,25 @@ export class Coordination {
     const queued = performance.now();
     let started = false, abortQueued;
     const cancelledBeforeStart = new Promise((_, reject) => { abortQueued = () => { if (!started) reject(combined.reason); }; combined.addEventListener('abort', abortQueued, { once: true }); });
-    const execution = this.queue.then(() => work.run({ operation: op, signal: combined, timings: op.timings }, async () => {
-      started = true; combined.removeEventListener('abort', abortQueued);
-      checkWork();
-      op.timings.push({ id: 0, phase: 'queue', parent: null, elapsed_ms: Math.round((performance.now() - queued) * 100) / 100 });
-      let result;
-      try {
-        try { result = await ctx.dispatch(name, args); }
-        catch (error) { result = { isError: true, content: [{ type: 'text', text: error.message }], _meta: { stop_reason: error.name === 'TimeoutError' || combined.aborted ? stoppingReason(error) : 'error' } }; }
-        result._meta = { ...result._meta, timing: { relation: 'nested phases include their children; do not sum parents and children', stages: op.timings } };
-        return result;
-      } finally { if (combined.aborted) { const cleanup = await work.run(undefined, () => ctx.cleanup(op.devices)); if (result) result._meta = { ...result._meta, cleanup }; } }
+    const identified = this.identityGate.then(() => typeof ctx.queueDeviceKey === 'function' ? ctx.queueDeviceKey(name, args) : null);
+    this.identityGate = identified.catch(() => {});
+    const execution = identified.then(deviceKey => this.chain(this.sessionKey(ctx), () => {
+      const run = () => work.run({ operation: op, signal: combined, timings: op.timings }, async () => {
+        started = true; combined.removeEventListener('abort', abortQueued);
+        checkWork();
+        op.timings.push({ id: 0, phase: 'queue', parent: null, elapsed_ms: Math.round((performance.now() - queued) * 100) / 100 });
+        let result;
+        try {
+          try { result = await ctx.dispatch(name, args); }
+          catch (error) { result = { isError: true, content: [{ type: 'text', text: error.message }], _meta: { stop_reason: error.name === 'TimeoutError' || combined.aborted ? stoppingReason(error) : 'error' } }; }
+          result._meta = { ...result._meta, timing: { relation: 'nested phases include their children; do not sum parents and children', stages: op.timings } };
+          return result;
+        } finally { if (combined.aborted) { const cleanup = await work.run(undefined, () => ctx.cleanup(op.devices)); if (result) result._meta = { ...result._meta, cleanup }; } }
+      });
+      return deviceKey ? this.chain(deviceKey, run) : run();
     }));
+    execution.catch(() => {});
     op.done = Promise.race([execution, cancelledBeforeStart]).finally(() => { combined.removeEventListener('abort', abortQueued); this.operations.delete(op); });
-    this.queue = execution.catch(() => {});
     return op.done;
   }
 }

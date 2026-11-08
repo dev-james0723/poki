@@ -1,5 +1,6 @@
+import {snapshotUI,viewportFromAX,axSignature} from './ax-snapshot.mjs';
 import { remoteDevices, nativeRequest } from './remote.mjs';
-import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason } from './work.mjs';
+import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason, work } from './work.mjs';
 import { Coordination, managementTools } from './coordination.mjs';
 import { runBatch } from './batch.mjs';
 import { mkdir, readFile, writeFile, unlink, stat } from 'node:fs/promises';
@@ -22,7 +23,7 @@ const usedSimulators = new Set();
 const approvedTools = new Set(['install_app', 'uninstall_app', 'build_and_run', 'open_url', 'download_app_container', 'get_clipboard', 'set_clipboard']);
 const platformTools = new Set(['start_simulator', 'shut_down_simulator', 'start_recording', 'stop_recording', 'set_appearance', 'set_accessibility', 'list_apps', 'launch_app', 'terminate_app', 'install_app', 'uninstall_app', 'open_settings', 'open_url', 'build_and_run', 'set_location', 'clear_location', 'get_clipboard', 'set_clipboard', 'list_crashes', 'get_crash', 'download_app_container']);
 
-const settleMs = 600, readbackMs = 5000;
+const settleMs = 600, readbackMs = 5000, remoteReadbackMs = 25000;
 const reportsScreen = new Set(['tap', 'double_tap', 'long_press', 'tap_text', 'swipe', 'drag', 'scroll', 'pinch', 'type_text', 'fill', 'press_key', 'press_button', 'go_back', 'handle_alert', 'system_gesture']);
 // These exist to act on a control, so the reply says when nothing was seen to change after one.
 const touchesControl = new Set(['tap', 'double_tap', 'long_press', 'tap_text', 'go_back', 'handle_alert']);
@@ -40,13 +41,30 @@ export function hidPoint(x, y, width, height) {
 export class Devices {
   selected; requested; frame; size; seen; elements = []; elementsAt = 0; lastInputAt = -Infinity; inBatch = false;
   scales = new Map(); physicalNames = new Map(); backgroundDevices = new Map(); nextRef = 0;
-  constructor(coordinator = new Coordination()) { this.coordinator = coordinator; }
+  nativeTargets = new Map();
+  constructor(coordinator = new Coordination()) { this.coordinator = coordinator; this.coordinator.nativeOwners ??= new Map(); this.coordinator.axCooldown ??= new Map(); }
+  ownNativeResources(target) {
+    if (target.kind !== 'physical') return;
+    this.nativeTargets.set(target.id,target); this.coordinator.nativeOwners.set(target.id,this);
+  }
   async run(file, args, timeout = 45000, input) {
     const result = await execute(file, args, { timeout, input });
     return { stdout: result.stdout.trimEnd(), stderr: result.stderr.trimEnd() };
   }
   async cleanup(onlyDevices) {
     const result = await closePlatform(this, onlyDevices);
+    const native = [];
+    for (const [id,target] of [...this.nativeTargets]) {
+      if (onlyDevices && !onlyDevices.has(id)) continue;
+      this.nativeTargets.delete(id);
+      if (this.coordinator.nativeOwners.get(id) !== this) { native.push({device:id,skipped_new_owner:true}); continue; }
+      this.coordinator.nativeOwners.delete(id);
+      try {
+        const receipt = await work.run({signal:AbortSignal.timeout(2500),timings:[]},()=>nativeRequest(target,{op:'release_input'}));
+        native.push({device:id,released:receipt.released===true});
+      } catch (error) { native.push({device:id,released:false,error:error.message}); }
+    }
+    result.native = native;
     if (onlyDevices) for (const id of onlyDevices) this.backgroundDevices.delete(id);
     else this.backgroundDevices.clear();
     if (!onlyDevices || onlyDevices.has(this.frame?.device)) { this.frame = undefined; this.elements = []; }
@@ -68,8 +86,11 @@ export class Devices {
   ownBackground(id, type) { if (!this.backgroundDevices.has(id)) this.backgroundDevices.set(id, new Set()); this.backgroundDevices.get(id).add(type); }
   unownBackground(id, type) { const owned = this.backgroundDevices.get(id); owned?.delete(type); if (!owned?.size) this.backgroundDevices.delete(id); }
   access(target) { this.coordinator.access(this, target); }
-  changed(target) { this.coordinator.changed(target.id); this.elements = []; this.elementsAt = 0; this.frame = undefined; this.seen = undefined; }
+  changed(target) { this.axSize = undefined; this.coordinator.changed(target.id); this.elements = []; this.elementsAt = 0; this.frame = undefined; this.seen = undefined; }
   async inventory(all = false) {
+    // Device choice is this session's explicit id or name, or its own selection.
+    // A process-wide pin is not a selector: it would hide every other phone from
+    // every MCP client that shares the daemon.
     const { stdout } = await this.run('python3', [join(root, 'native/devices.py')], 8000);
     const physical = new Map();
     for (const device of JSON.parse(stdout)) {
@@ -103,12 +124,30 @@ export class Devices {
       }
     }));
   }
+  matchesFor(list, query) {
+    if (!query) return list.filter(d => d.kind === 'physical' || d.state === 'Booted');
+    const wanted = query.toLocaleLowerCase();
+    return list.filter(d => d.id === query || d.name.toLocaleLowerCase() === wanted);
+  }
+  // Queue routing only. This does not claim a lease or refresh USB names.
+  async knownDevice(query) {
+    if (!query) return null;
+    const matches = this.matchesFor(await this.inventory(true), query);
+    return matches.length === 1 ? matches[0] : null;
+  }
+  async queueDeviceKey(name, args) {
+    if (['list_devices', 'poki_mcp_status', 'wait'].includes(name) && !args?.device) return null;
+    const hinted = typeof args?.device === 'string' && args.device ? args.device : this.selected || '';
+    if (!hinted) return null;
+    const device = await this.knownDevice(hinted);
+    return device ? `device:${device.id}` : null;
+  }
   async target(boot = true) {
     checkWork();
     if (this.resolved) { this.access(this.resolved); return this.resolved; }
     const list = await this.inventory(true);
     const query = this.requested ?? this.selected;
-    let matches = query ? list.filter(d => d.id === query || d.name.toLocaleLowerCase() === query.toLocaleLowerCase()) : list.filter(d => d.kind === 'physical' || d.state === 'Booted');
+    let matches = this.matchesFor(list, query);
     if (query && !matches.length) {
       for (const d of list.filter(d => d.kind === 'physical')) {
         const occupancy = this.coordinator.status(d.id, this);
@@ -117,7 +156,7 @@ export class Devices {
         const value = await this.run(idevice, ['--udid', d.id, 'lockdown', 'get', 'DeviceName']);
         try { d.name = JSON.parse(value.stdout); this.physicalNames.set(d.id, d.name); } catch { continue; }
       }
-      matches = list.filter(d => d.name.toLocaleLowerCase() === query.toLocaleLowerCase());
+      matches = this.matchesFor(list, query);
     }
     if (!matches.length) throw new Error(query ? 'Device is not connected or the selected device disconnected. Use list_devices and select_device.' : 'No device is connected. Connect and trust an iPhone, or start a simulator.');
     if (matches.length !== 1) throw new Error(`Multiple devices match. Use select_device or specify device: ${matches.map(d => `${d.name} (${d.id})`).join(', ')}.`);
@@ -147,7 +186,7 @@ export class Devices {
   async bridge(request) {
     const target = await this.target();
     if (target.kind === 'simulator') return simulatorRequest(target.id, request);
-    const command = request.op === 'ax' ? { op: 'ax_tree', include_offscreen: request.include_offscreen ?? false } : request;
+    const command = request.op === 'ax' ? { op: 'ax_tree', include_offscreen: request.include_offscreen ?? false, ...(request.timeout_ms === undefined ? {} : {timeout_ms: request.timeout_ms}), ...(request.event_stream ? {event_stream:true} : {}) } : request;
     const result = await nativeRequest(target, command);
     if (request.op === 'ax') return { ...result, foreground: result.foreground_app, elements: result.elements?.map(e => ({ ...e, type: e.type ?? e.role })) };
     return result;
@@ -239,6 +278,8 @@ export class Devices {
     const target = await this.target();
     if (this.seen?.device === target.id && performance.now() - this.seen.at <= maxAge) return this.seen;
     const tree = await phase('accessibility', () => this.bridge({ op: 'ax', include_offscreen: false }));
+    const nativeViewport = viewportFromAX(tree);
+    if (nativeViewport) { this.size = { device: target.id, ...nativeViewport }; this.axSize = { ...this.size, revision: this.coordinator.revision(target.id), at: performance.now() }; }
     const elements = (tree.elements ?? []).filter(onScreen(this.size?.device === target.id ? this.size : await this.capture()));
     // A tree that leaves a state out compares equal to one that gives its default.
     const signature = JSON.stringify(elements.map(e => { const box = e.frame ?? e; return [e.type ?? e.role, e.label, e.text, e.value, e.focused, Boolean(e.selected), Boolean(e.enabled ?? true), box.x, box.y, box.width, box.height]; }));
@@ -248,13 +289,27 @@ export class Devices {
   // current orientation, so it keeps taking a fresh frame.
   async screenSize() {
     const target = await this.target();
+    if (this.axSize?.device === target.id && this.axSize.revision === this.coordinator.revision(target.id) && performance.now() - this.axSize.at < 500) return this.axSize;
     return target.kind === 'simulator' && this.size?.device === target.id ? this.size : this.viewport();
   }
   // Reading the result back saves the caller a round trip to look. The action has already happened,
   // so a failed read only loses the report; a stop request still surfaces as a stop.
   async readback(before, options) {
     try {
-      const { signature, screen } = await deadline(readbackMs, () => readScreen(this, options));
+      const target = await this.target();
+      // A fast, already-dispatched batch step must not wait 20s for an AX
+      // subscription before its screenshot/OCR fallback. Cap the read while
+      // preserving the original, longer comparison for verified operations.
+      const fastRemote = target.remote && options?.once === true;
+      const budget = fastRemote ? 11500 : (target.remote ? remoteReadbackMs : readbackMs);
+      // A failed AX subscription is often repeated across MCP clients. Share a
+      // short per-device cooldown to avoid paying the same 3.5s AX timeout on
+      // every read; OCR remains observation-only, never verified state.
+      const preferOcr = fastRemote && (this.coordinator.axCooldown.get(target.id) ?? 0) > performance.now();
+      const readOptions = fastRemote ? { ...options, axBudgetMs: Math.min(options.axBudgetMs ?? 3500, 3500), preferOcr } : options;
+      const { signature, screen } = await deadline(budget, () => readScreen(this, readOptions));
+      if (fastRemote && screen.ax_timeout === true) this.coordinator.axCooldown.set(target.id, performance.now() + 20000);
+      else if (fastRemote && screen.source === 'accessibility') this.coordinator.axCooldown.delete(target.id);
       const compared = before !== undefined && signature !== undefined;
       return { screen, screen_change_verified: compared, ...(compared ? { screen_changed: signature !== before } : {}) };
     } catch (error) {
@@ -264,12 +319,13 @@ export class Devices {
   }
   // The action does not depend on this read, so a slow read only costs the comparison.
   async readBefore(maxAge) {
-    try { return await deadline(readbackMs, () => this.structure(maxAge)); } catch { checkWork(); }
+    try { const target = await this.target(); return await deadline(target.remote ? remoteReadbackMs : readbackMs, () => this.structure(maxAge)); } catch { checkWork(); }
   }
   // A batch step reports only whether its touch changed the screen; the batch ends with the screen itself.
   async changedSince(before) {
     try {
-      const changed = await deadline(readbackMs, () => screenChanged(this, before));
+      const target = await this.target();
+      const changed = await deadline(target.remote ? remoteReadbackMs : readbackMs, () => screenChanged(this, before));
       return changed === undefined ? {} : { screen_change_verified: true, screen_changed: changed };
     } catch {
       try { checkWork(); } catch (stop) { return { stopped: true, stop_reason: stoppingReason(stop) }; }
@@ -286,26 +342,41 @@ export class Devices {
   }
   async input(request) {
     const target = await this.target();
-    const frame = 'x' in request || 'x1' in request || request.op === 'pinch' ? await this.screenSize() : undefined;
-    const command = { ...request };
-    if ('x' in command) {
-      const p = hidPoint(command.x, command.y, frame.width, frame.height);
-      if (target.kind === 'physical') { command.x = p[0]; command.y = p[1]; }
+    if (this.expectedApp) {
+      const seen = await this.structure(500);
+      if (![seen.foreground?.bundle_id,seen.foreground?.name].includes(this.expectedApp)) {
+        return {isError:true,outcome:'not_sent',sent:false,stop_reason:'error',error:'Foreground changed or is unreadable. Nothing was dispatched.'};
+      }
     }
-    if ('x1' in command) {
-      const a = hidPoint(command.x1, command.y1, frame.width, frame.height), b = hidPoint(command.x2, command.y2, frame.width, frame.height);
-      if (target.kind === 'physical') [command.x1,command.y1,command.x2,command.y2] = [...a,...b];
-    }
-    if (command.op === 'pinch' && target.kind === 'physical') {
-      command.start_distance *= 65535 / (frame.width - 1); command.end_distance *= 65535 / (frame.width - 1);
-    }
-    await phase('recording_recovery', () => prepareRecordingInput(this, target));
-    // The last screen read before the first input of a call is the one its effect is measured against.
-    if (this.seen?.device === target.id) this.beforeInput ??= this.seen;
-    this.changed(target);
+    this.ownNativeResources(target);
     let result;
-    try { result = await phase('input', () => this.bridge(command)); }
-    catch (error) { result = { outcome: 'unknown', error: error.message, stopped: Boolean(stopped(error)), stop_reason: stopped(error) ? stoppingReason(error) : 'unknown', instruction: 'Input may have been delivered. Inspect the screen before retrying.', isError: true }; }
+    let wrote = false;
+    try {
+      const frame = 'x' in request || 'x1' in request || request.op === 'pinch' ? await this.screenSize() : undefined;
+      const command = { ...request };
+      if ('x' in command) {
+        const p = hidPoint(command.x, command.y, frame.width, frame.height);
+        if (target.kind === 'physical') { command.x = p[0]; command.y = p[1]; }
+      }
+      if ('x1' in command) {
+        const a = hidPoint(command.x1, command.y1, frame.width, frame.height), b = hidPoint(command.x2, command.y2, frame.width, frame.height);
+        if (target.kind === 'physical') [command.x1,command.y1,command.x2,command.y2] = [...a,...b];
+      }
+      if (command.op === 'pinch' && target.kind === 'physical') {
+        command.start_distance *= 65535 / (frame.width - 1); command.end_distance *= 65535 / (frame.width - 1);
+      }
+      await phase('recording_recovery', () => prepareRecordingInput(this, target));
+      // The last screen read before the first input of a call is the one its effect is measured against.
+      if (this.seen?.device === target.id) this.beforeInput ??= this.seen;
+      this.changed(target);
+      wrote = true;
+      result = await phase('input', () => this.bridge(command));
+    } catch (error) {
+      // A listener we never dialed is not_sent. A helper that closed after the
+      // request was written stays unknown and is not replayed.
+      if (!wrote || error?.outcome === 'not_sent') result = { outcome: 'not_sent', sent: false, isError: true, stop_reason: 'error', error: error.message, instruction: 'Nothing reached the iPhone.' };
+      else result = { outcome: 'unknown', error: error.message, stopped: Boolean(stopped(error)), stop_reason: stopped(error) ? stoppingReason(error) : 'unknown', instruction: 'Input may have been delivered. Inspect the screen before retrying.', isError: true };
+    }
     this.lastInputAt = performance.now();
     if (target.kind === 'physical') {
       try { await phase('recording_recovery', () => resumeRecordings(this, target)); }
@@ -317,7 +388,8 @@ export class Devices {
     const def = definitions.find(d => d[0] === name);
     if (!def) throw new Error(`Unknown tool: ${name}`);
     const args = def[2].parse(original);
-    const previous = this.requested, previousResolved = this.resolved;
+    const previous = this.requested, previousResolved = this.resolved, previousExpectedApp = this.expectedApp;
+    this.expectedApp = args.expected_app ?? previousExpectedApp;
     // Steps of one batch share a lookup, which runs a Python process and simctl each time.
     const sharesTarget = this.inBatch && args.device === undefined;
     if (!sharesTarget) this.resolved = undefined;
@@ -339,7 +411,7 @@ export class Devices {
       }
       switch (name) {
         case 'acquire_device': return text(await this.coordinator.acquire(this, await this.target(false), args.ttl_seconds ?? 120));
-        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), registered_device_tools: 50, observation_tools: 1, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human' });
+        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), registered_device_tools: 50, observation_tools: 3, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human' });
         case 'list_devices': return text({ devices: await this.describeDevices(args.include_all_simulators), ...(args.include_all_simulators ? { simulator_models: await simulatorModels() } : {}) });
         case 'disconnect_device':
         case 'reconnect_device': {
@@ -387,6 +459,8 @@ export class Devices {
           const data = extension === '.png' ? frame.original : await sharp(frame.original).jpeg({quality:95}).toBuffer();
           await writeFile(path,data,{flag:args.overwrite?'w':'wx',mode:0o600}); return text({path,bytes:data.length});
         }
+        case 'observe_fast': return text((await this.readback(undefined,{ once:true })).screen);
+        case 'snapshot_ui': return text(await snapshotUI(this,args));
         case 'list_elements': return text(await this.recognize(args));
         case 'observe_device': {
           const result = await this.recognize(args), frame = this.frame;
@@ -421,7 +495,12 @@ export class Devices {
           const looks = verify && reportsScreen.has(name) && !this.inBatch, touches = verify && touchesControl.has(name);
           this.beforeInput = undefined;
           // A batch step may reuse the read its predecessor just took of the same screen.
-          const before = looks || touches ? await this.readBefore(this.inBatch ? justReadMs : 0) : undefined;
+          // Remote AX can take longer than the old 5-second pre-read budget. Locating tools
+          // read the actual target themselves, so a speculative pre-read may time out and
+          // leave a draining read in the remote helper before the real lookup begins.
+          const locatesTarget = ['tap_text', 'fill', 'handle_alert'].includes(name);
+          const skipSpeculativeRead = locatesTarget && (await this.target()).remote;
+          const before = (looks || touches) && !skipSpeculativeRead ? await this.readBefore(this.inBatch ? justReadMs : 0) : undefined;
           let result = await interaction(this,name,args);
           if(result===undefined) throw new Error(`No implementation for ${name}`);
           const delivered = result.sent === true && !result.isError && !result.stopped;
@@ -441,6 +520,6 @@ export class Devices {
           return { ...text(result), ...(unchanged ? { _meta: { stop_reason: 'no_change' } } : {}) };
         }
       }
-    } finally { this.requested=previous; if (!sharesTarget) this.resolved=previousResolved; }
+    } finally { this.expectedApp=previousExpectedApp; this.requested=previous; if (!sharesTarget) this.resolved=previousResolved; }
   }
 }

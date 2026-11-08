@@ -219,6 +219,12 @@
           "verify": {
             "type": "boolean",
             "description": "Set false to skip action verification. Returns verified:false. Text targeting and coordinate sizing still read current device data."
+          },
+          "expected_app": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Require this exact observed foreground name or bundle ID immediately before dispatch. A mismatch sends nothing."
           }
         },
         "required": [
@@ -361,6 +367,12 @@
           "verify": {
             "type": "boolean",
             "description": "Set false to skip action verification. Returns verified:false. Text targeting and coordinate sizing still read current device data."
+          },
+          "expected_app": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Require this exact observed foreground name or bundle ID immediately before dispatch. A mismatch sends nothing."
           }
         },
         "required": [
@@ -544,6 +556,12 @@
           },
           "submit": {
             "type": "boolean"
+          },
+          "expected_app": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Require this exact observed foreground name or bundle ID immediately before dispatch. A mismatch sends nothing."
           }
         },
         "required": [
@@ -1361,6 +1379,48 @@
           }
         },
         "required": []
+      }
+    },
+    {
+      "name": "snapshot_ui",
+      "description": "Read a fresh native accessibility snapshot without any screenshot or OCR. Reports foreground, structured elements, real viewport if available, timestamps and truncation. No screenshot-bound refs are issued. If AX is unavailable it fails closed; use take_screenshot separately only when needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "string"
+          },
+          "max_elements": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "include_offscreen": {
+            "type": "boolean"
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 20000
+          },
+          "event_stream": {
+            "type": "boolean",
+            "description": "Opt in to AX event hints. Only complete events with receipt age <=500ms and newer than local invalidation are eligible; otherwise a live AX read is used within the same deadline. Event receipt age does not prove generation freshness; event snapshots never seed input caches and require a live read before input. Default false."
+          }
+        }
+      }
+    },
+    {
+      "name": "observe_fast",
+      "description": "Read the current phone screen quickly without sending any input. Try one bounded native AX read then fall back to local screenshot OCR when AX is slow or unavailable. The response includes text/source and any prompt warning; OCR does not verify screen changes or authorize coordinates. This is a read-only observation; do not interpret a sent receipt as a successful task.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "string",
+            "description": "Explicit paired device identifier; recommended for multi-device environments."
+          }
+        }
       }
     }
   ]

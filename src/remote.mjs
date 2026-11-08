@@ -1,23 +1,52 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, readFile, lstat, unlink } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, lstat, unlink } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { root, stateDir } from './config.mjs';
-import { checkWork, signal, phase } from './work.mjs';
+import { checkWork, signal, phase, remainingMs } from './work.mjs';
+import { chooseEndpoint, observeListeners, RemoteListenerError } from './remote-endpoint.mjs';
 
 const starting = new Map();
 const localHelpers = new Map();
+const remoteHelpers = new Map();
 const readOnly = new Set(['ax_tree', 'screenshot', 'device_info', 'display_info', 'list_apps']);
 let closing = false;
 
 async function stopLocalHelper({ child, exited }) {
-  child.kill('SIGTERM');
+  if (!child || child.killed || child.exitCode !== null) return;
+  try { child.kill('SIGTERM'); }
+  catch (error) { if (error.code !== 'ESRCH') throw error; return; }
   const escalation = setTimeout(() => child.kill('SIGKILL'), 1000);
   try { await exited; }
   finally { clearTimeout(escalation); }
+}
+
+// A config without host and port is handed to the helper unchanged. Existing
+// fixture helpers do not dial a listener. A real record is copied into a
+// runtime file so the saved port, including 49152, is not rewritten and is not
+// dialed when a current advertisement names a different port for this device only.
+async function materializeRemote(target) {
+  let saved;
+  try { saved = JSON.parse(await readFile(target.remote, 'utf8')); }
+  catch (error) {
+    if (error.code === 'ENOENT' || error instanceof SyntaxError) return null;
+    throw error;
+  }
+  if (!saved || typeof saved !== 'object' || typeof saved.host !== 'string' || !Number.isInteger(saved.port)) return null;
+  if (typeof saved.id === 'string' && saved.id !== target.id) throw new RemoteListenerError('Remote configuration identity does not match the selected device.', 'remote_identity_mismatch');
+  const record = { id: target.id, host: saved.host, port: saved.port };
+  const choice = chooseEndpoint(record, await observeListeners([record]));
+  if (!choice.ok) throw new RemoteListenerError(choice.message, choice.code, choice.outcome);
+  const directory = join(stateDir, 'remote-runtime');
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const body = JSON.stringify({ id: target.id, host: choice.host, port: choice.port, ...(typeof saved.pairing_file === 'string' ? { pairing_file: saved.pairing_file } : {}) });
+  const file = join(directory, createHash('sha256').update(`${target.id}\0${choice.host}\0${choice.port}`).digest('hex').slice(0, 24) + '.json');
+  await writeFile(file, body, { mode: 0o600 });
+  await writeFile(`${file}.source`, JSON.stringify({ source: choice.source, presumed_current: choice.presumedCurrent === true, saved_port: saved.port }), { mode: 0o600 });
+  return file;
 }
 
 export async function closeLocalHelpers() {
@@ -47,11 +76,16 @@ function connect(path) {
 async function socketFor(target) {
   // macOS Unix socket names are limited to 104 bytes, regardless of the state directory's length.
   if (!target.remote && closing) throw new Error('Local native helpers are shutting down.');
-  const directory = `/tmp/poki-${target.remote ? 'remote' : 'native'}-${process.getuid()}`;
+  const launch = { ...target };
+  if (target.remote) {
+    const runtime = await materializeRemote(target);
+    if (runtime) launch.remote = runtime;
+  }
+  const directory = `/tmp/poki-${launch.remote ? 'remote' : 'native'}-${process.getuid()}`;
   await mkdir(directory, { mode: 0o700, recursive: true });
   const info = await lstat(directory);
   if (!info.isDirectory() || info.uid !== process.getuid() || (info.mode & 0o077)) throw new Error('Remote socket directory must be private and owned by this user.');
-  const path = join(directory, createHash('sha256').update(target.remote ?? JSON.stringify([root, stateDir, process.pid, target.id])).digest('hex').slice(0, 24) + '.sock');
+  const path = join(directory, createHash('sha256').update(launch.remote ?? JSON.stringify([root, stateDir, process.pid, launch.id])).digest('hex').slice(0, 24) + '.sock');
   try { return { socket: await connect(path), path }; }
   catch (error) { if (!['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw error; }
   if (!starting.has(path)) {
@@ -63,11 +97,17 @@ async function socketFor(target) {
         if (!stale.isSocket() || stale.uid !== process.getuid()) throw new Error('Unexpected file at the remote socket path.');
         await unlink(path);
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
-      if (!target.remote && closing) throw new Error('Local native helpers are shutting down.');
-      const args = target.remote ? ['--remote-server', target.remote, path] : ['--local-server', target.id, path];
-      const child = spawn(join(root, 'build/poki-native'), args, { detached: Boolean(target.remote), stdio: [target.remote ? 'ignore' : 'pipe', 'pipe', process.env.POKI_MCP_NATIVE_TRACE ? 'inherit' : 'ignore'] });
-      if (process.env.POKI_MCP_NATIVE_TRACE) console.error(JSON.stringify({ event: 'native_helper_started', pid: child.pid, transport: target.remote ? 'remote' : 'local' }));
-      if (!target.remote) {
+      if (!launch.remote && closing) throw new Error('Local native helpers are shutting down.');
+      const previousRemote = launch.remote ? remoteHelpers.get(launch.id) : undefined;
+      if (previousRemote && previousRemote.path !== path) await stopLocalHelper(previousRemote);
+      const args = launch.remote ? ['--remote-server', launch.remote, path] : ['--local-server', launch.id, path];
+      const child = spawn(join(root, 'build/poki-native'), args, { detached: Boolean(launch.remote), stdio: [launch.remote ? 'ignore' : 'pipe', 'pipe', process.env.POKI_MCP_NATIVE_TRACE ? 'inherit' : 'ignore'] });
+      if (process.env.POKI_MCP_NATIVE_TRACE) console.error(JSON.stringify({ event: 'native_helper_started', pid: child.pid, transport: launch.remote ? 'remote' : 'local' }));
+      if (launch.remote) {
+        const exited = once(child, 'exit').catch(() => {}).then(() => { if (remoteHelpers.get(launch.id)?.child === child) remoteHelpers.delete(launch.id); });
+        remoteHelpers.set(launch.id, { path, child, exited });
+      }
+      if (!launch.remote) {
         const exited = once(child, 'exit').catch(() => {}).then(async () => {
           await unlink(path).catch(() => {});
           if (localHelpers.get(path)?.child === child) localHelpers.delete(path);
@@ -95,6 +135,7 @@ async function socketFor(target) {
 
 export async function nativeRequest(target, request) {
   checkWork();
+  if (request.op === "ax_tree") request = { ...request, timeout_ms: remainingMs(Math.min(request.timeout_ms ?? 20000,20000)) };
   const callerSignal = signal();
   const { socket, path } = await phase('native_helper', () => socketFor(target));
   try { checkWork(); } catch (error) { socket.destroy(); throw error; }
