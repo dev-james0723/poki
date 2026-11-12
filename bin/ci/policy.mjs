@@ -23,7 +23,7 @@ export const PLAN=Object.freeze([
   {id:'cli-session',kind:'node-tests',command:['node','--test','--test-reporter=tap','test/cli-session.test.mjs'],seconds:120},
   {id:'dual-phone-unit',kind:'node-tests',command:['node','--test','--test-reporter=tap','bin/dual-phone/session.test.mjs','bin/dual-phone/visual.test.mjs','bin/dual-phone/native-overlap.test.mjs'],seconds:120},
   {id:'native-build-receipt-unit',kind:'python-tests',command:['python3','-I','-B','test/native-build-receipt.test.py','-v'],seconds:120},
-  {id:'ci-entrypoint-unit',kind:'node-tests',command:['node','--test','--test-reporter=tap','test/ci-linux.test.mjs'],seconds:120},
+  {id:'ci-entrypoint-unit',kind:'node-tests',command:['node','--test','--test-reporter=tap','test/ci-linux.test.mjs','bin/ci/ubuntu-userspace.test.mjs'],seconds:120},
 ]);
 
 export function need(condition,code){if(!condition)throw Object.assign(new Error(code),{code});}

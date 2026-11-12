@@ -6,24 +6,53 @@ task_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 command -v node >/dev/null && node -e 'if(Number(process.versions.node.split(".")[0])<24)process.exit(1)' || {
   echo 'Configure the build image with Node.js 24 or newer before bootstrap.' >&2; exit 2;
 }
-missing=0
-for task_tool in git curl python3 pkg-config cc c++ cmake tar sha256sum; do command -v "$task_tool" >/dev/null || missing=1; done
-pkg-config --exists dbus-1 2>/dev/null || missing=1
-if [[ $missing == 1 ]]; then
+task_tools=$(mktemp -d "${TMPDIR:-/tmp}/poki-ci-tools.XXXXXXXX")
+task_missing=()
+for task_tool in git curl python3 pkg-config cc c++ make ar cmake tar gzip sha256sum; do
+  command -v "$task_tool" >/dev/null || task_missing+=("$task_tool")
+done
+pkg-config --exists dbus-1 2>/dev/null || task_missing+=(libdbus-1-dev)
+if [[ ${#task_missing[@]} != 0 ]]; then
+  printf 'Missing build prerequisites: %s\n' "${task_missing[*]}" >&2
   [[ ${POKI_CI_INSTALL_PACKAGES:-0} == 1 ]] || {
-    echo 'Missing Ubuntu build prerequisites: git curl python3 pkg-config build-essential cmake libdbus-1-dev ca-certificates.' >&2
-    echo 'Preinstall them, or set POKI_CI_INSTALL_PACKAGES=1 on a runner with root/passwordless sudo. Default features are preserved.' >&2
+    echo 'Preinstall them, or set POKI_CI_INSTALL_PACKAGES=1. Default features are preserved.' >&2
     exit 2
   }
-  task_sudo=()
-  if [[ $(id -u) != 0 ]]; then
-    command -v sudo >/dev/null && sudo -n true || { echo 'Package installation requires root or passwordless sudo; no gate was skipped.' >&2; exit 2; }
+  if [[ $(id -u) == 0 ]]; then
+    task_sudo=()
+  elif command -v sudo >/dev/null && sudo -n true >/dev/null 2>&1; then
     task_sudo=(sudo -n)
+  else
+    # Pages has no passwordless sudo. Only these bounded dependencies can be
+    # supplied in a private prefix; a missing compiler or base tool still fails.
+    for task_tool in "${task_missing[@]}"; do
+      case "$task_tool" in pkg-config|libdbus-1-dev|cmake) ;;
+        *) echo "Cannot bootstrap missing base tool without root: $task_tool" >&2; exit 2 ;;
+      esac
+    done
+    source "$task_root/bin/ci/ubuntu-userspace.sh"
+    if ! command -v pkg-config >/dev/null || ! pkg-config --exists dbus-1; then
+      poki_ci_userspace_dbus "$task_tools"
+    fi
+    if ! command -v cmake >/dev/null; then
+      poki_ci_userspace_cmake "$task_tools"
+    fi
+    task_sudo=(userspace-complete)
   fi
-  "${task_sudo[@]}" apt-get update
-  "${task_sudo[@]}" apt-get install -y --no-install-recommends git curl ca-certificates python3 pkg-config build-essential cmake libdbus-1-dev tar gzip coreutils
+  if [[ ${task_sudo[0]:-} != userspace-complete ]]; then
+    "${task_sudo[@]}" apt-get update
+    "${task_sudo[@]}" apt-get install -y --no-install-recommends git curl ca-certificates python3 pkg-config build-essential cmake libdbus-1-dev tar gzip coreutils
+  fi
 fi
-task_tools=$(mktemp -d "${TMPDIR:-/tmp}/poki-ci-tools.XXXXXXXX")
+# Check the actual usable compiler/header/link/runtime combination before Cargo.
+python3 -I -B - "$task_tools" <<'PY'
+import pathlib,shlex,subprocess,sys
+root=pathlib.Path(sys.argv[1]); source=root/'dbus-probe.c'; binary=root/'dbus-probe'
+source.write_text('#include <dbus/dbus.h>\nint main(void) { int a,b,c; dbus_get_version(&a,&b,&c); return a < 1; }\n')
+flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','dbus-1'],text=True))
+subprocess.run(['cc',str(source),'-o',str(binary),*flags],check=True)
+subprocess.run([str(binary)],check=True)
+PY
 case $(uname -m) in
   x86_64) task_rust_target=x86_64-unknown-linux-gnu; task_action_arch=amd64 ;;
   aarch64|arm64) task_rust_target=aarch64-unknown-linux-gnu; task_action_arch=arm64 ;;

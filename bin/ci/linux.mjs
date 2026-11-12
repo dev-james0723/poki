@@ -31,7 +31,7 @@ async function toolVersions(repo,env){
   const versions={node:process.version};
   for(const [name,command,args] of [
     ['npm','npm',['--version']],['cargo','cargo',[`+${RUST_VERSION}`,'--version']],['rustc','rustc',[`+${RUST_VERSION}`,'--version']],
-    ['python','python3',['-I','--version']],['actionlint','actionlint',['--version']],['dbus','pkg-config',['--modversion','dbus-1']],
+    ['python','python3',['-I','--version']],['actionlint','actionlint',['--version']],['dbus','pkg-config',['--modversion','dbus-1']],['cmake','cmake',['--version']],
   ])versions[name]=(await small(command,args,{cwd:repo,env,encoding:'utf8',timeout:30000,maxBuffer:65536})).stdout.trim().split('\n')[0];
   need(versions.rustc.startsWith(`rustc ${RUST_VERSION} `)&&versions.cargo.startsWith(`cargo ${RUST_VERSION} `),'rust_version_mismatch');
   need(versions.actionlint.replace(/^v/,'')===ACTIONLINT_VERSION,'actionlint_version_mismatch');return versions;
@@ -83,7 +83,7 @@ async function main(){
     required_checks:PLAN.map(stage=>stage.id),checks:[],pipeline_hash:sha(JSON.stringify({rust:RUST_VERSION,actionlint:ACTIONLINT_VERSION,plan:PLAN,exclusions:EXCLUSIONS})),
     source_hashes:{},runner:{platform:process.platform,architecture:process.arch}};
   try{
-    for(const path of ['bin/ci/linux.mjs','bin/ci/policy.mjs','bin/ci/bootstrap-ubuntu.sh'])report.source_hashes[path]=sha(await readFile(join(repo,path)));
+    for(const path of ['bin/ci/linux.mjs','bin/ci/policy.mjs','bin/ci/bootstrap-ubuntu.sh','bin/ci/ubuntu-userspace.sh','bin/ci/relocate-dbus.py'])report.source_hashes[path]=sha(await readFile(join(repo,path)));
     report.runner.versions=await toolVersions(repo,env);
     for(const stage of PLAN){
       console.log(`CI_START ${stage.id}`);

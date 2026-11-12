@@ -16,8 +16,9 @@ No account or repository numeric IDs belong in these files.
 - Node: configure Node 24 or newer in the provider's build image.
 - Rust: this entrypoint uses `1.99.1`, matching the verified local toolchain.
 - Optional first-build pin: `POKI_CI_EXPECTED_SHA=<full expected commit>`.
-- Optional system-package installation: `POKI_CI_INSTALL_PACKAGES=1`, only when
-  the actual build image provides root or passwordless sudo.
+- Optional dependency installation: `POKI_CI_INSTALL_PACKAGES=1`. Root or
+  passwordless sudo uses Ubuntu packages; the tested Pages image instead uses
+  the bounded userspace bootstrap described below.
 
 The root `.gitignore` excludes the generated `.ci-output/` directory.
 The runner refuses an output path that Git does not ignore, an already existing
@@ -43,6 +44,23 @@ CA certificates and the DBus development package (`libdbus-1-dev`). Neither sudo
 nor those packages is assumed to exist. Bootstrap checks them. If anything is
 missing and package installation is unavailable, it exits nonzero with a precise
 prerequisite message. It never disables default Rust features to make a build pass.
+
+For Ubuntu Jammy without passwordless sudo, bootstrap can supply DBus development
+headers and their matching runtime from signed official Ubuntu package metadata.
+It uses fresh private APT lists, downloads the verified `.deb` archives, and extracts
+them under a temporary prefix without installing packages or executing maintainer
+scripts. It relocates only the private DBus pkg-config file and library links;
+system pkg-config modules retain their existing paths. The private library paths
+are passed to the test processes. A real C compile/link/run probe verifies DBus
+before Cargo. Missing base tools, a package/signature mismatch, or a failed probe
+still stops the build.
+
+If CMake is absent on x86_64, bootstrap extracts the pinned official Kitware CMake
+`3.31.6` Linux bundle after checking its committed SHA-256. The hash was verified
+against both Kitware's download site and its official GitHub release manifest.
+Its `bin` and `share` directories remain together in the private prefix. Other
+architectures must already provide CMake. This fallback does not alter system
+libraries or require sudo, a password, a daemon, or a phone connection.
 
 Rustup installs the named `1.99.1` toolchain without changing the default toolchain.
 If Rustup is absent, bootstrap downloads the pinned `1.29.3` installer and verifies
@@ -126,3 +144,7 @@ receipt service would need immutable atomic insertion by repository/commit/run I
 idempotent identical submissions, rejection of conflicting writes, fixed coverage
 validation and a trusted provider-run verification before posting any green status.
 It must never mark tests passed merely because a POST was accepted.
+
+The two private DBus SDK integration tests live in `bin/ci/ubuntu-userspace.test.mjs`
+and run as a required part of the Linux CI command. They require Linux
+`pkg-config`; the default macOS root test glob does not pick up that file.
