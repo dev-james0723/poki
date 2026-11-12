@@ -1,0 +1,152 @@
+diff --git a/docs/native-workflow-speed-v2.md b/docs/native-workflow-speed-v2.md
+index 217dc6a..dc23bb2 100644
+--- a/docs/native-workflow-speed-v2.md
++++ b/docs/native-workflow-speed-v2.md
+@@ -21,7 +21,7 @@ Example plan, for use only after the labels and initial screen have been observe
+     {"kind": "tap", "label": "Change Mode"},
+     {"kind": "tap", "label": "Scientific"}
+   ],
+-  "finish": {"all": ["sin", "cos"]}
++  "finish": {"all": ["Sine", "Cosine"]}
+ }
+ ```
+ 
+@@ -37,7 +37,7 @@ This is deliberately a numeric-keypad implementation. Arbitrary moving buttons,
+ 
+ `snapshot_ui` accepts `query.labels` and/or `query.roles`. Only matching elements are returned, reducing model/worker payload and irrelevant content. The result exposes `source_total` and `scope.returned:"query_matches"`.
+ 
+-The iPhone still sends a complete AX tree. This change does **not** claim to reduce the native subscription or iPhone-to-Mac read latency. Full-tree prompt checks and input caches remain intact; a filtered result is never represented as an unfiltered whole-screen observation. Event hints remain observation hints and cannot authorize input.
++The iPhone still sends a complete AX tree. This change does **not** claim to reduce the native subscription or iPhone-to-Mac read latency. Full-tree prompt checks and input caches remain intact; a filtered result is never represented as an unfiltered whole-screen observation. Label queries use the same NFKC, case and whitespace normalization as workflow conditions, so a negative condition cannot silently omit an equivalent visible label. Whole-screen batch readbacks reject scoped projections and inconsistent source counts. Event hints remain observation hints and cannot authorize input.
+ 
+ ## 4. Existing native app actions
+ 
+diff --git a/src/ax-snapshot.mjs b/src/ax-snapshot.mjs
+index e770c17..6c98ed5 100644
+--- a/src/ax-snapshot.mjs
++++ b/src/ax-snapshot.mjs
+@@ -1,6 +1,7 @@
+ import {randomUUID} from 'node:crypto';
+ import {deadline,phase,checkWork} from './work.mjs';
+ import {promptWarning} from './interaction.mjs';
++import {flagOn} from './element-flags.mjs';
+ import {snapshotQuerySchema} from './workflow-v2-schema.mjs';
+ 
+ // Only an explicit full-screen native Application frame establishes a viewport.
+@@ -12,14 +13,16 @@ export function viewportFromAX(tree) {
+   if(!f||f.x!==0||f.y!==0||![f.width,f.height].every(Number.isFinite)||f.width<2||f.height<2||f.width>16384||f.height>16384)return null;
+   return {width:f.width,height:f.height,orientation:tree.orientation??null};
+ }
+-export function axSignature(elements) {
+-  return JSON.stringify(elements.map(e=>{const f=e.frame??e;return [e.type??e.role,e.label,e.text,e.value,e.focused,Boolean(e.selected),Boolean(e.enabled??true),f.x,f.y,f.width,f.height];}));
++export function axSignature(elements,foreground) {
++  const front=[foreground?.pid??null,foreground?.bundle_id??null];
++  return JSON.stringify([front,...elements.map(e=>{const f=e.frame??e;return [e.type??e.role,e.label,e.text,e.value,e.focused,Boolean(e.selected),flagOn(e.enabled),f.x,f.y,f.width,f.height];})]);
+ }
+ const onscreen=(e,v)=>{const f=e.frame??e;return Number.isFinite(f.x)&&Number.isFinite(f.y)&&f.x<v.width&&f.y<v.height&&f.x+f.width>0&&f.y+f.height>0;};
++const normalizedLabel=text=>text.normalize('NFKC').toLocaleLowerCase().trim();
+ 
+ export async function snapshotUI(ctx,args={}) {
+   return deadline(args.timeout_ms??6000,async()=>{
+-    const started=new Date().toISOString();
++    const startedAt=performance.now(),started=new Date().toISOString();
+     const target=await ctx.target();
+     if(args.event_stream)ctx.ownNativeResources(target);
+     const tree=await phase('accessibility',()=>ctx.bridge({op:'ax',include_offscreen:args.include_offscreen??false,timeout_ms:args.timeout_ms??6000,event_stream:args.event_stream??false}));
+@@ -32,12 +35,13 @@ export async function snapshotUI(ctx,args={}) {
+     const finished=new Date(Date.now()-sourceAge).toISOString();
+     const revision=ctx.coordinator.revision(target.id);
+     if(viewport&&!fromEvent){ctx.size={device:target.id,...viewport};ctx.axSize={...ctx.size,revision,at:performance.now()-sourceAge};}
+-    if(!args.include_offscreen&&!fromEvent)ctx.seen={device:target.id,foreground:tree.foreground,elements,signature:axSignature(elements),at:performance.now()-sourceAge};
++    if(viewport&&!args.include_offscreen&&!fromEvent)ctx.seen={device:target.id,revision,foreground:tree.foreground,elements,signature:axSignature(elements,tree.foreground),rootVerified:true,at:performance.now()-sourceAge,startedAt,observedAt:started,structure_started_at:started,structure_completed_at:finished};
+     // Projection reduces the caller's payload, not the iOS subscription cost.
+     // Keep full-tree prompt checks and caches; never make filtered data stand
+     // in for a complete screen or an event stand in for a live input binding.
+     const query=args.query===undefined?undefined:snapshotQuerySchema.parse(args.query);
+-    const projected=query?elements.filter(e=>(!query.roles||query.roles.includes(e.role??e.type))&&(!query.labels||[e.label,e.text,e.value,e.identifier,e.placeholder].some(t=>query.labels.includes(t)))):elements;
++    const labels=query?.labels&&new Set(query.labels.map(normalizedLabel));
++    const projected=query?elements.filter(e=>(!query.roles||query.roles.includes(e.role??e.type))&&(!labels||[e.label,e.text,e.value,e.identifier,e.placeholder].some(t=>typeof t==='string'&&labels.has(normalizedLabel(t))))):elements;
+     // Structure-only observations intentionally do not mint screenshot-bound tap refs.
+     return {observation:{id:randomUUID(),device:target.id,revision,source:'accessibility',input_freshness:fromEvent?'requires_live_read':'live_read',request_started_at:started,structure_started_at:fromEvent?null:started,structure_completed_at:finished,capture_started_at:null,capture_completed_at:null,atomic:false},source:'accessibility',image_captured:false,native_runtime:tree.native_runtime??null,event_source:tree.observation_source??'accessibility_live',source_age_ms:sourceAge,foreground:tree.foreground??null,width:viewport?.width??null,height:viewport?.height??null,units:'points',geometry_source:viewport?'native_application_frame':null,elements:projected.slice(0,args.max_elements??160).map(({ref,...e})=>e),total:projected.length,truncated:projected.length>(args.max_elements??160),prompt:promptWarning(elements)??null,...(query?{source_total:elements.length,scope:{native_tree_read:'complete',returned:'query_matches',query}}:{})};
+   });
+diff --git a/src/device.mjs b/src/device.mjs
+index 3b485f9..5ff2fe0 100644
+--- a/src/device.mjs
++++ b/src/device.mjs
+@@ -381,11 +381,7 @@ export class Devices {
+     if (!rootVerified) this.structureViewport = undefined;
+     const elements = rawElements.filter(onScreen(viewport));
+     // Preserve upstream foreground-based identity, including PID-only roots.
+-    const front = [tree.foreground?.pid ?? null, tree.foreground?.bundle_id ?? null];
+-    const signature = JSON.stringify([front, ...elements.map(e => {
+-      const box = e.frame ?? e;
+-      return [e.type ?? e.role, e.label, e.text, e.value, e.focused, Boolean(e.selected), flagOn(e.enabled), box.x, box.y, box.width, box.height];
+-    })]);
++    const signature = axSignature(elements, tree.foreground);
+     return this.seen = {
+       device: target.id, revision: this.coordinator.revision(target.id), foreground: tree.foreground,
+       elements, signature, rootVerified, at: performance.now(), startedAt: started, observedAt,
+diff --git a/src/tools.mjs b/src/tools.mjs
+index e63692c..7e9d380 100644
+--- a/src/tools.mjs
++++ b/src/tools.mjs
+@@ -85,7 +85,11 @@ const schemaOf = tool => {
+       ? { ...tool.inputSchema, properties: { ...tool.inputSchema.properties,
+         include_image: { type: 'boolean', description: 'Attach PNG (default true); false retains capture and prompt checks.' } } }
+       : tool.inputSchema;
+-  const schema = z.fromJSONSchema(schemaWithObservations);
++  const generated = z.fromJSONSchema(schemaWithObservations);
++  // JSON Schema cannot carry Zod's cross-field refinements or trim checks.
++  // Keep the actual query validator in the daemon's batch preflight schema.
++  const schema = tool.name === 'snapshot_ui'
++    ? generated.extend({query:snapshotQuerySchema.optional()}) : generated;
+   return strokeChecks[tool.name] ? schema.superRefine(strokeChecks[tool.name]) : schema;
+ };
+ export const definitions = catalog.tools.map(tool => [tool.name, [tool.description, guidance[tool.name]].filter(Boolean).join('\n\n'), schemaOf(tool), readOnly.has(tool.name)]);
+diff --git a/test/workflow-v2-integration.test.mjs b/test/workflow-v2-integration.test.mjs
+index 76538ca..e5523a0 100644
+--- a/test/workflow-v2-integration.test.mjs
++++ b/test/workflow-v2-integration.test.mjs
+@@ -14,6 +14,15 @@ test('all four additive workflow tools are discoverable through native MCP',asyn
+   for(const name of ['run_workflow','tap_sequence','run_app_action','choose_action'])assert.ok(names.includes(name));
+   assert.equal(value(await f.call('poki_mcp_status')).total_tools,names.length);
+ });
++test('invalid scoped query is rejected before any earlier batch input runs',async t=>{
++  const f=await fixture(t);await f.set(state({afterInput:{label:'Done'}}));
++  const r=await f.call('batch_commands',{commands:[
++    {tool:'tap_text',arguments:{text:'First',expected_app:'Fixture',verify:false}},
++    {tool:'snapshot_ui',arguments:{query:{}}},
++  ]});
++  assert.equal(r.isError,true);
++  assert.equal((await f.events()).filter(e=>e.op==='tap').length,0,'All query refinements must be validated before dispatching batch input');
++});
+ test('a complete native workflow executes one known tap and independently checks its result',async t=>{
+   const f=await fixture(t);await f.set(state({afterInput:{label:'Done'}}));
+   const r=await f.call('run_workflow',plan());
+@@ -32,6 +41,27 @@ test('a failed final condition is an error, never a successful workflow receipt'
+   assert.match(value(r).script_error,/final result/);
+   assert.equal((await f.events()).filter(e=>e.op==='tap').length,1);
+ });
++test('a normalized absence condition cannot disappear from a scoped workflow checkpoint',async t=>{
++  const f=await fixture(t);
++  await f.set(state({afterInput:{elements:[app,button('Done'),{role:'StaticText',label:'Loading',frame:{x:10,y:100,width:70,height:20}}]}}));
++  const r=await f.call('run_workflow',plan({finish:{all:['Done'],none:['loading']}}));
++  assert.equal(r.isError,true,'The workflow must not claim completion while Loading is still visible');
++  assert.match(value(r).script_error,/final result/);
++});
++test('a scoped final snapshot cannot replace a whole-screen batch readback',async t=>{
++  const f=await fixture(t);
++  await f.set(state({afterInput:{elements:[app,button('Done'),{role:'StaticText',label:'Loading',frame:{x:10,y:100,width:70,height:20}}]}}));
++  const r=await f.call('batch_commands',{commands:[
++    {tool:'tap_text',arguments:{text:'First',expected_app:'Fixture',verify:false}},
++    {tool:'snapshot_ui',arguments:{query:{labels:['Done']}}},
++  ]});
++  assert.ok(!r.isError,JSON.stringify(r));
++  const parts=r.content.filter(c=>c.type==='text').flatMap(c=>{try{return [JSON.parse(c.text)];}catch{return [];}});
++  assert.ok(parts.some(p=>p.scope?.returned==='query_matches'&&p.elements.length===1));
++  const summary=parts.at(-1);
++  assert.ok(summary.screen.text.some(text=>text.includes('Loading')),'The final whole-screen report must retain text outside the query');
++  assert.equal(summary.screen.observation_id,undefined,'The projection must not be reused as the whole-screen checkpoint');
++});
+ test('native workflow conditions skip unnecessary actions locally',async t=>{
+   const f=await fixture(t);await f.set(state());
+   const r=await f.call('run_workflow',plan({steps:[{kind:'tap',label:'Other',when:{all:['Other']}}],finish:{all:['First']}}));
