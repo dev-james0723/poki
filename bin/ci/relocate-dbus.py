@@ -12,7 +12,7 @@ def relocate(root, triplet):
         raise ValueError("unsupported architecture")
     pc = root / "usr" / "lib" / triplet / "pkgconfig" / "dbus-1.pc"
     text = pc.read_text()
-    for name in ("prefix", "exec_prefix", "libdir", "includedir"):
+    for name in ("original_prefix", "prefix", "exec_prefix", "libdir", "includedir"):
         text = re.sub(r"(?m)^" + name + r"=(/[^\n]*)$",
                       lambda m: name + "=" + str(root) + m[1], text)
     pc.write_text(text)

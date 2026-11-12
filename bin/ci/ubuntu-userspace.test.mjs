@@ -14,7 +14,7 @@ test('private DBus SDK relocation resolves private headers/library without redir
     mkdirSync(pc,{recursive:true});mkdirSync(runtime,{recursive:true});
     writeFileSync(join(runtime,'libdbus-1.so.3'),'synthetic library');
     symlinkSync(`/lib/${triplet}/libdbus-1.so.3`,join(lib,'libdbus-1.so'));
-    writeFileSync(join(pc,'dbus-1.pc'),`prefix=/usr\nexec_prefix=\${prefix}\nlibdir=/usr/lib/${triplet}\nincludedir=\${prefix}/include\nName: dbus\nDescription: Synthetic DBus SDK\nVersion: 1.0\nLibs: -L\${libdir} -ldbus-1\nCflags: -I\${includedir}/dbus-1.0 -I\${libdir}/dbus-1.0/include\n`);
+    writeFileSync(join(pc,'dbus-1.pc'),`original_prefix=/usr\nprefix=\${original_prefix}\nexec_prefix=\${prefix}\nlibdir=/usr/lib/${triplet}\nincludedir=\${prefix}/include\nName: dbus\nDescription: Synthetic DBus SDK\nVersion: 1.0\nLibs: -L\${libdir} -ldbus-1\nCflags: -I\${includedir}/dbus-1.0 -I\${libdir}/dbus-1.0/include\n`);
     const other=join(root,'other');mkdirSync(other);
     writeFileSync(join(other,'unrelated.pc'),'prefix=/opt/system-sdk\nName: unrelated\nDescription: Outside the private SDK\nVersion: 1.0\nCflags: -I${prefix}/include\n');
     execFileSync('python3',['-I','-B',fileURLToPath(new URL('./relocate-dbus.py',import.meta.url)),root,triplet]);
