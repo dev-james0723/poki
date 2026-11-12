@@ -552,6 +552,7 @@ export class Devices {
     const def = definitions.find(d => d[0] === name);
     if (!def) throw new Error(`Unknown tool: ${name}`);
     const args = def[2].parse(original);
+    if(args.native_text_result && (!this.inBatch || this.batchStep?.next))throw Error('native_text_result is supported only on the final text step of batch_commands. Nothing was dispatched.');
     // Invalidate a previous call's AX-only viewport BEFORE dispatching any
     // tool. In particular CUA look/do and batch_commands bypass the default
     // input branch; without this they could reuse portrait size after rotation.

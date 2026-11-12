@@ -85,7 +85,10 @@ const schemaOf = tool => {
   const generated = z.fromJSONSchema(schemaWithObservations);
   // Preserve query refinements during whole-batch validation.
   const schema = tool.name === 'snapshot_ui'
-    ? generated.extend({query:snapshotQuerySchema.optional()}) : generated;
+    ? generated.extend({query:snapshotQuerySchema.optional()})
+    : ['fill','type_text'].includes(tool.name)
+      ? generated.extend({native_text_result:z.boolean().optional().describe('Opt in only on the final non-submitting text step of a batch with expected_app. Return the native AX field-verification receipt instead of another whole-screen read. No full-screen observation or submission success is claimed; older or incomplete receipts retain normal readback.')})
+      : generated;
   return strokeChecks[tool.name] ? schema.superRefine(strokeChecks[tool.name]) : schema;
 };
 export const definitions = catalog.tools.map(tool => [tool.name, [tool.description, guidance[tool.name]].filter(Boolean).join('\n\n'), schemaOf(tool), readOnly.has(tool.name)]);

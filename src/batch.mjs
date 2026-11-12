@@ -63,6 +63,29 @@ async function finalSnapshot(ctx, command, result) {
     screen_stable:false, ...(data.prompt ? {prompt:data.prompt} : {}) };
 }
 
+// This receipt proves the supplied text in its native field. It is deliberately
+// not a screen snapshot, a cache seed, or proof of a submit/app-side effect.
+async function finalNativeText(ctx,command,result) {
+  const args=command?.arguments;
+  if(!args?.native_text_result || result?.isError)return;
+  let proof;
+  try { proof=JSON.parse(result.content?.find(block=>block.type==='text')?.text); }
+  catch { return; }
+  if(proof?.sent!==true || proof.text_verified!==true || proof.submit_sent!==false ||
+     proof.isError || proof.stopped || proof.stop_reason || proof.outcome==='unknown' ||
+     proof.verification_source!=='accessibility' || proof.characters!==Array.from(args.text).length ||
+     typeof proof.field?.object_id!=='string' || !proof.field.object_id ||
+     !['TextField','TextArea','TextView','SearchField'].includes(proof.field.role) ||
+     !Number.isInteger(proof.native_runtime?.pid) || proof.native_runtime.pid<=0 ||
+     typeof proof.native_runtime.build_id!=='string' || !proof.native_runtime.build_id || proof.native_runtime.build_id==='unversioned' ||
+     !Array.isArray(proof.native_runtime.features) || !proof.native_runtime.features.includes('native_paste_timings'))return;
+  const target=await ctx.target();
+  if(target.kind!=='physical' || proof.native_runtime.device && proof.native_runtime.device!==target.id)return;
+  return {scope:'text_input',text_verified:true,characters:proof.characters,submit_sent:false,
+    verification_source:'accessibility',field:{name:proof.field.name??null,role:proof.field.role},
+    clipboard_restored:proof.clipboard_restored===true,clipboard_restore_status:proof.clipboard_restore_status??'unknown'};
+}
+
 // A batch is one queued operation, so its steps share a device lookup. A touch is compared with the
 // screen before it when a later step depends on that (see Devices.checksStep); the screen itself is
 // read back once, after the last step.
@@ -73,6 +96,13 @@ export async function runBatch(ctx, args) {
     const supportsVerification = definitions.find(([name]) => name === tool)?.[2].shape?.verify;
     return { ...command, tool, ...(args.verify === false && supportsVerification ? { arguments: { verify: false, ...command.arguments } } : {}) };
   });
+  const invalidTextMode=commands.findIndex((c,i)=>c.arguments?.native_text_result===true &&
+    (i!==commands.length-1 || !['fill','type_text'].includes(c.tool) || c.arguments.submit!==false ||
+     typeof c.arguments.expected_app!=='string' || !c.arguments.expected_app.trim() ||
+     c.arguments.return_observation===true || c.arguments.post_action_ocr===true));
+  if(invalidTextMode>=0)return {isError:true,content:[receipt({completed_steps:0,stop_reason:'error',
+    reason:'native_text_result_requires_final_non_submitting_text_with_expected_app',
+    instruction:'Nothing ran. Use native_text_result only on the final fill/type_text with submit:false and expected_app; request a separate screen observation when needed.'})]};
   const unverified = commands.some(command => command.arguments?.verify === false);
   const stopOnError = args.stop_on_error !== false;
   const invalid = stopOnError ? commands.findIndex(invalidStep) : -1;
@@ -124,11 +154,15 @@ export async function runBatch(ctx, args) {
     // dispatch restores both when this batch ends.
     if (last.arguments?.device) { ctx.requested = last.arguments.device; ctx.resolved = undefined; }
     const readStarted = performance.now();
+    const nativeText=!failed&&!stopReason ? await finalNativeText(ctx,commands[ran-1],lastResult) : undefined;
+    if(nativeText)summary.native_text_result=nativeText;
+    else {
     const explicit = await finalSnapshot(ctx, commands[ran - 1], lastResult);
     const { screen, stop_reason } = explicit ? {screen:explicit}
       : await phase('batch_readback', () => ctx.readback(undefined, { once: unverified }));
     stopReason ??= stop_reason;
     summary.screen = screen;
+    }
     readbackMs = Math.round(performance.now() - readStarted);
   }
   if (stopReason) {
