@@ -1,5 +1,8 @@
 # Poki 第二階段整合審查
 
+> Historical pre-port review. The required clean-fork port was subsequently completed in d342e1e and installed for Sing. See [the current installation and multi-app results](native-multi-app-results-20261112.md). The limitations below describe the earlier candidate review.
+
+
 第二階段可在包含現有本機前置功能的隔離副本整合；目前不可直接把候選 commit 套到已公開的乾淨 fork 分支。沒有安裝第二階段、重啟共用服務、操作手機或呼叫付費模型。
 
 ## 審查範圍

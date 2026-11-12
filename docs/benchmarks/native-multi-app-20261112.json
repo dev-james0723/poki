@@ -1,0 +1,355 @@
+{
+  "date": "2026-11-12",
+  "device_model": "iPhone 15 Pro Max",
+  "transport": "RemotePairing",
+  "public_commit": "d342e1e720ad0e0ca2eed9ffb4aed29a1837340c",
+  "before_native_build_id": "7a33774f76ed9281c39d7e7ba32ad8abf2b7bc0f71b7e25a511061a6588a8801",
+  "after_native_build_id": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed",
+  "rows": [
+    {
+      "app": "Settings",
+      "task": "General → Keyboard",
+      "phase": "before",
+      "trial": 1,
+      "elapsed_ms": 3358,
+      "isError": false,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1665
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1681
+        }
+      ],
+      "stop_reason": null
+    },
+    {
+      "app": "Clock",
+      "task": "Timers → Stopwatch",
+      "phase": "before",
+      "trial": 1,
+      "elapsed_ms": 4495,
+      "isError": false,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 3299
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1181
+        }
+      ],
+      "stop_reason": null
+    },
+    {
+      "app": "Notes",
+      "task": "Empty owned draft → verified mixed-language draft",
+      "phase": "before",
+      "trial": 1,
+      "elapsed_ms": 17256,
+      "isError": false,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 10768
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 6472
+        }
+      ],
+      "stop_reason": null,
+      "characters": 56
+    },
+    {
+      "app": "Notes",
+      "task": "Empty owned draft → verified mixed-language draft",
+      "characters": 56,
+      "phase": "after",
+      "trial": 1,
+      "elapsed_ms": 11783,
+      "isError": false,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 10475
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1294
+        }
+      ],
+      "stop_reason": null,
+      "timing": {
+        "queue_ms": 0.14,
+        "batch_ms": 11770,
+        "steps_ms": 11769,
+        "readback_ms": 1,
+        "service_ms": 11775,
+        "dispatch_ms": 11775,
+        "admission": {
+          "session_queue_ms": 0.01,
+          "device_resolution_ms": 0.08,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 10470.25
+          },
+          "native_helper": {
+            "count": 2,
+            "total_ms": 0.39
+          },
+          "native_request": {
+            "count": 2,
+            "total_ms": 11756.66
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1286.85
+          }
+        }
+      }
+    },
+    {
+      "app": "Clock",
+      "task": "Timers → Stopwatch",
+      "phase": "after",
+      "trial": 1,
+      "elapsed_ms": 7484,
+      "isError": false,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 4031
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 3431
+        }
+      ],
+      "stop_reason": null,
+      "timing": {
+        "queue_ms": 0.12,
+        "batch_ms": 7462,
+        "steps_ms": 7462,
+        "readback_ms": 1,
+        "service_ms": 7468,
+        "dispatch_ms": 7468,
+        "admission": {
+          "session_queue_ms": 0.02,
+          "device_resolution_ms": 0.02,
+          "lock_wait_ms": 0.01
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 5318.92
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.68
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 7449.64
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 2131.54
+          }
+        }
+      }
+    },
+    {
+      "app": "Settings",
+      "task": "General → Keyboard",
+      "phase": "after",
+      "trial": 1,
+      "elapsed_ms": 3101,
+      "isError": false,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1778
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1309
+        }
+      ],
+      "stop_reason": null,
+      "timing": {
+        "queue_ms": 0.07,
+        "batch_ms": 3088,
+        "steps_ms": 3087,
+        "readback_ms": 1,
+        "service_ms": 3095,
+        "dispatch_ms": 3095,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.02,
+          "lock_wait_ms": 0.01
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 2720.83
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.6
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 3073.39
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 353.25
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "One successful measured attempt per app and phase; exploratory, not a performance qualification.",
+    "Same native batch recipe per app; launch, reset, scrolling and clearing the owned test draft excluded from timed interval.",
+    "Client elapsed includes the native MCP call and reply, excludes model reasoning.",
+    "Timing phases are nested; do not sum parents and children.",
+    "No alarms or stopwatch started; one synthetic 56-character Notes draft retained.",
+    "K1 receiver paused during a coordinated window; existing uncertain journal/grants/pairings retained.",
+    "Earlier current-epoch Calculator preparation failed AX reads; an attempted trial overlapped a shared reload and is excluded from matched app trials."
+  ],
+  "human_reference": {
+    "navigation_apps": [
+      "Settings",
+      "Clock"
+    ],
+    "repetitions_per_app": 3,
+    "total_repetitions": 6,
+    "combined_total_seconds": 5,
+    "pooled_mean_seconds": 0.8333333333333334,
+    "source": "user-reported combined total; not instrumented",
+    "poki_pooled_mean_seconds": 5.2925,
+    "rough_poki_to_human_ratio": 6.351,
+    "per_app_human_times": "not supplied; do not assign a separate ratio to either app"
+  },
+  "handoff": {
+    "sing_lease_released": true,
+    "sing_input_resources_released": true,
+    "source_lease_released": true,
+    "k1_receiver_left_disabled": true,
+    "james_occupied_at_handoff": true,
+    "james_occupied_explained": "K1 owner confirmed the occupied flag was its newly acquired verification lease after handoff, subsequently released."
+  },
+  "native_notes_receipts": {
+    "before": {
+      "clipboard_snapshot": "unavailable",
+      "clipboard_restored": false,
+      "text_verified": true
+    },
+    "after": {
+      "clipboard_snapshot": "complete",
+      "clipboard_restored": true,
+      "text_verified": true
+    }
+  },
+  "api_visibility": {
+    "runtime_tools": 70,
+    "public_branch_tools": 69,
+    "current_chat_new_tool_names_hot_loaded": false,
+    "new_tool_name_discovery": "normal MCP client reconnect required; no Codex-wide restart performed",
+    "physical_measurements_interface": "existing complete native Poki MCP batch/keyboard/touch/snapshot tools executing upgraded service and helper"
+  },
+  "controls_before": [
+    {
+      "tool": "wait(0)",
+      "elapsed_ms": 51
+    },
+    {
+      "tool": "batch(wait(0))",
+      "elapsed_ms": 24,
+      "step_ms": 7
+    },
+    {
+      "tool": "batch(wait(0))",
+      "elapsed_ms": 19,
+      "step_ms": 8
+    }
+  ],
+  "preparation_failures": [
+    {
+      "kind": "AX target lookup",
+      "outcome": "not_sent",
+      "reported_timeout_seconds": 45
+    },
+    {
+      "kind": "AX read",
+      "timeout_seconds": 10
+    },
+    {
+      "kind": "AX read after native reconnect",
+      "elapsed_ms": 2131,
+      "verified": true
+    },
+    {
+      "kind": "attempted Calculator trial",
+      "elapsed_ms": 22473,
+      "api_error": true,
+      "step_receipts": 0,
+      "overlapped_shared_daemon_restart": true,
+      "used_in_matched_comparison": false,
+      "input_replayed": false
+    }
+  ]
+}

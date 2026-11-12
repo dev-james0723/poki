@@ -92,3 +92,8 @@ The historical 12–18 s no-input batch delay did not repeat before this port: c
 Software validation: full public Node suite 415/415 passed before the final diagnostic-only error receipt addition; final diagnostic and protocol checks are recorded separately. Rust 38/38 passed and an optimized native release binary built locally against the unchanged pinned dependency. Gateway device-binding/cancellation and workflow checks passed 73/73 with synthetic inputs and no live credentials/model calls. A mistakenly copied test for an unrelated, unported Terminal phone runner was moved out of this native-only port; no existing public test was removed.
 
 Physical qualification covers Calculator plus Settings navigation, Clock tab navigation and a synthetic Notes draft. Each task needs a verified final state, all failures and preparation/interference reported separately. These are planned qualification tasks until measured results are attached; software tests do not establish phone-speed or all-app acceptance.
+
+
+## Installed physical result
+
+The coordinated Sing update and three-app comparison are complete for the scope in [the measured results](native-multi-app-results-20261112.md). The installed runtime advertised 70 tools including local K1 support; the clean public catalog has 69. Existing client discovery still needs normal reconnection. All six specified single-trial app flows were verified, with both faster and slower observations. Hardware qualification of every new API is not claimed. GitHub CI could not start because the account is billing-locked; local checks passed.
