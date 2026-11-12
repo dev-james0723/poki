@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {deadline,phase,checkWork} from './work.mjs';
 import {promptWarning} from './interaction.mjs';
+import {flagOn} from './element-flags.mjs';
 
 // Only an explicit full-screen native Application frame establishes a viewport.
 // Never estimate it from the furthest child: lists can include offscreen rows.
@@ -11,14 +12,15 @@ export function viewportFromAX(tree) {
   if(!f||f.x!==0||f.y!==0||![f.width,f.height].every(Number.isFinite)||f.width<2||f.height<2||f.width>16384||f.height>16384)return null;
   return {width:f.width,height:f.height,orientation:tree.orientation??null};
 }
-export function axSignature(elements) {
-  return JSON.stringify(elements.map(e=>{const f=e.frame??e;return [e.type??e.role,e.label,e.text,e.value,e.focused,Boolean(e.selected),Boolean(e.enabled??true),f.x,f.y,f.width,f.height];}));
+export function axSignature(elements,foreground) {
+  const front=[foreground?.pid??null,foreground?.bundle_id??null];
+  return JSON.stringify([front,...elements.map(e=>{const f=e.frame??e;return [e.type??e.role,e.label,e.text,e.value,e.focused,Boolean(e.selected),flagOn(e.enabled),f.x,f.y,f.width,f.height];})]);
 }
 const onscreen=(e,v)=>{const f=e.frame??e;return Number.isFinite(f.x)&&Number.isFinite(f.y)&&f.x<v.width&&f.y<v.height&&f.x+f.width>0&&f.y+f.height>0;};
 
 export async function snapshotUI(ctx,args={}) {
   return deadline(args.timeout_ms??6000,async()=>{
-    const started=new Date().toISOString();
+    const startedAt=performance.now(),started=new Date().toISOString();
     const target=await ctx.target();
     const tree=await phase('accessibility',()=>ctx.bridge({op:'ax',include_offscreen:args.include_offscreen??false,timeout_ms:args.timeout_ms??6000,event_stream:false}));
     checkWork();
@@ -30,7 +32,7 @@ export async function snapshotUI(ctx,args={}) {
     const finished=new Date(Date.now()-sourceAge).toISOString();
     const revision=ctx.coordinator.revision(target.id);
     if(viewport&&!fromEvent){ctx.size={device:target.id,...viewport};ctx.axSize={...ctx.size,revision,at:performance.now()-sourceAge};}
-    if(!args.include_offscreen&&!fromEvent)ctx.seen={device:target.id,foreground:tree.foreground,elements,signature:axSignature(elements),at:performance.now()-sourceAge};
+    if(viewport&&!args.include_offscreen&&!fromEvent)ctx.seen={device:target.id,revision,foreground:tree.foreground,elements,signature:axSignature(elements,tree.foreground),rootVerified:true,at:performance.now()-sourceAge,startedAt,observedAt:started,structure_started_at:started,structure_completed_at:finished};
     // Structure-only observations intentionally do not mint screenshot-bound tap refs.
     return {observation:{id:randomUUID(),device:target.id,revision,source:'accessibility',input_freshness:fromEvent?'requires_live_read':'live_read',request_started_at:started,structure_started_at:fromEvent?null:started,structure_completed_at:finished,capture_started_at:null,capture_completed_at:null,atomic:false},source:'accessibility',image_captured:false,native_runtime:tree.native_runtime??null,event_source:tree.observation_source??'accessibility_live',source_age_ms:sourceAge,foreground:tree.foreground??null,width:viewport?.width??null,height:viewport?.height??null,units:'points',geometry_source:viewport?'native_application_frame':null,elements:elements.slice(0,args.max_elements??160).map(({ref,...e})=>e),total:elements.length,truncated:elements.length>(args.max_elements??160),prompt:promptWarning(elements)??null};
   });

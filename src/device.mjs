@@ -1,4 +1,4 @@
-import {snapshotUI,viewportFromAX} from './ax-snapshot.mjs';
+import {snapshotUI,viewportFromAX,axSignature} from './ax-snapshot.mjs';
 import { remoteDevices, nativeRequest } from './remote.mjs';
 import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason, timingCount, timingsSince } from './work.mjs';
 import { Coordination, managementTools } from './coordination.mjs';
@@ -337,11 +337,7 @@ export class Devices {
     if (!rootVerified) this.structureViewport = undefined;
     const elements = rawElements.filter(onScreen(viewport));
     // Preserve upstream foreground-based identity, including PID-only roots.
-    const front = [tree.foreground?.pid ?? null, tree.foreground?.bundle_id ?? null];
-    const signature = JSON.stringify([front, ...elements.map(e => {
-      const box = e.frame ?? e;
-      return [e.type ?? e.role, e.label, e.text, e.value, e.focused, Boolean(e.selected), flagOn(e.enabled), box.x, box.y, box.width, box.height];
-    })]);
+    const signature = axSignature(elements, tree.foreground);
     return this.seen = {
       device: target.id, revision: this.coordinator.revision(target.id), foreground: tree.foreground,
       elements, signature, rootVerified, at: performance.now(), startedAt: started, observedAt,

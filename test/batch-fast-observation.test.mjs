@@ -82,6 +82,19 @@ test('the native MCP batch returns its explicit final AX checkpoint without anot
   assert.equal(summary.screen.source,'accessibility');
   assert.equal((await f.events()).filter(e=>e.op==='screenshot'||e.args?.includes('screenshot')).length,0);
 });
+test('an AX checkpoint primes the same comparison signature as ordinary reads',async t=>{
+  const f=await phoneFixture(t);
+  await f.set({appRoot:'Fixture',bundleId:'local.fixture',appName:'Fixture',label:'First'});
+  const out=await f.call('batch_commands',{commands:[
+    {tool:'snapshot_ui',arguments:{}},
+    {tool:'tap_text',arguments:{text:'First',expected_app:'Fixture'}},
+    {tool:'tap_text',arguments:{text:'First',expected_app:'Fixture'}},
+  ]});
+  const summary=JSON.parse(out.content.at(-1).text);
+  assert.equal(summary.stop_reason,'no_change');
+  assert.equal(summary.completed_steps,2);
+  assert.equal((await f.events()).filter(e=>e.op==='tap').length,1,'An unchanged tap must hold back the dependent action');
+});
 test('only a trailing snapshot removes the final tap comparison; semantic dependencies retain it',()=>{
   const d=new Devices();d.inBatch=true;
   d.batchStep={stopOnError:true};assert.equal(d.checksStep(),true);
