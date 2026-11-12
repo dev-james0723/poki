@@ -47,6 +47,8 @@ test('a complete trailing live snapshot is the batch readback, without a second 
 for(const [name,edit] of [
   ['event hint',s=>{s.observation.input_freshness='requires_live_read';s.event_source='accessibility_event';}],
   ['truncated tree',s=>{s.truncated=true;s.total=2;}],
+  ['scoped projection',s=>{s.scope={returned:'query_matches'};s.source_total=2;}],
+  ['hidden source elements',s=>{s.source_total=2;}],
   ['other device',s=>{s.observation.device='other';}],
   ['changed revision',s=>{s.observation.revision=3;}],
   ['pre-input read',s=>{s.observation.structure_started_at=new Date(now-1).toISOString();}],

@@ -51,6 +51,7 @@ async function finalSnapshot(ctx, command, result) {
   if (data?.source !== 'accessibility' || observation?.source !== 'accessibility' ||
       observation.input_freshness !== 'live_read' || data.event_source !== 'accessibility_live' ||
       data.image_captured !== false || data.truncated !== false ||
+      data.scope !== undefined || (data.source_total !== undefined && data.source_total !== data.total) ||
       !Array.isArray(data.elements) || !data.elements.length || data.total !== data.elements.length ||
       !(data.foreground?.bundle_id || data.foreground?.name) ||
       !Number.isFinite(started) || !Number.isFinite(completed) || completed < started ||
