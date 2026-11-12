@@ -62,6 +62,16 @@ test('a failed snapshot preserves its error and still attempts the normal final 
   const f=fixture(snapshot(),true);const out=await inside(()=>runBatch(f.ctx,{commands}));
   assert.equal(out.isError,true);assert.equal(f.reads(),1);
 });
+test('an explicit AX timeout is reported without a second automatic five-second read',async()=>{
+ const f=fixture();f.ctx.dispatch=async tool=>tool==='snapshot_ui'
+  ?{isError:true,_meta:{stop_reason:'timeout'},content:[{type:'text',text:'Observation deadline exceeded'}]}
+  :receipt({sent:true});
+ const out=await inside(()=>runBatch(f.ctx,{commands})),summary=JSON.parse(out.content.at(-1).text);
+ assert.equal(out.isError,true);assert.equal(summary.stop_reason,'timeout');assert.equal(summary.completed_steps,2);
+ assert.equal(f.reads(),0);assert.equal(summary.screen,undefined);
+ assert.deepEqual(summary.final_read_unavailable,{tool:'snapshot_ui',reason:'timeout',automatic_retry:false});
+ assert.ok(out.content.some(c=>c.type==='text'&&c.text.includes('"sent":true')));
+});
 test('malformed snapshot JSON falls back without losing the successful input receipt',async()=>{
   const f=fixture(null);const result=await inside(()=>runBatch(f.ctx,{commands}));
   assert.equal(f.reads(),1);assert.ok(!result.isError);

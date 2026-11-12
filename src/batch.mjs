@@ -65,7 +65,7 @@ async function finalSnapshot(ctx, command, result) {
 
 // This receipt proves the supplied text in its native field. It is deliberately
 // not a screen snapshot, a cache seed, or proof of a submit/app-side effect.
-async function finalNativeText(ctx,command,result) {
+export async function finalNativeText(ctx,command,result) {
   const args=command?.arguments;
   if(!args?.native_text_result || result?.isError)return;
   let proof;
@@ -150,7 +150,9 @@ export async function runBatch(ctx, args) {
   const summary = unverified ? { verified: false } : {};
   // Reading a simulator that a step just shut down would boot it again.
   const last = commands.slice(0, ran).findLast(command => !offDevice.has(command.tool));
-  if (last && last.tool !== 'shut_down_simulator') {
+  const exhaustedExplicitRead=failure?.tool==='snapshot_ui'&&stopReason==='timeout';
+  if(exhaustedExplicitRead)summary.final_read_unavailable={tool:'snapshot_ui',reason:'timeout',automatic_retry:false};
+  if (last && last.tool !== 'shut_down_simulator' && !exhaustedExplicitRead) {
     // dispatch restores both when this batch ends.
     if (last.arguments?.device) { ctx.requested = last.arguments.device; ctx.resolved = undefined; }
     const readStarted = performance.now();

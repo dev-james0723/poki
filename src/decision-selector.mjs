@@ -64,7 +64,7 @@ export async function selectAction(input,options={}) {
     const a=provider==='decisions'?answer?.answers?.find?.(a=>a.name==='next_action'):answer?.answers?.next_action;
     if(a?.type==='refusal')return proposal('STOP','model_refusal',provider);
     if(a?.type!=='choice'||(!input.actions.some(x=>x.id===a.choice)&&!Object.hasOwn(FALLBACKS,a.choice)))return proposal('STOP','invalid_model_action',provider);
-    if(!Number.isFinite(a.confidence)||a.confidence<.85||a.confidence>1)return proposal('REOBSERVE','uncertain_model_choice',provider);
+    if(!Number.isFinite(a.confidence)||a.confidence<.85||a.confidence>1)return proposal('REOBSERVE','uncertain_model_choice',provider,Number.isFinite(a.confidence)&&a.confidence>=0&&a.confidence<=1?{confidence:a.confidence}:{});
     return proposal(a.choice,'proposal_requires_fresh_executor_validation',provider,{confidence:a.confidence,observation_id:input.snapshot.observation.id});
   } catch {return proposal('REOBSERVE','decision_failed_no_retry',provider);}
   finally {clearTimeout(timer);requestSignal.removeEventListener('abort',onAbort);controller.abort();}

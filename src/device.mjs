@@ -2,7 +2,7 @@ import {snapshotUI,viewportFromAX,axSignature} from './ax-snapshot.mjs';
 import { remoteDevices, nativeRequest } from './remote.mjs';
 import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason, work, timingCount, timingsSince } from './work.mjs';
 import { Coordination, managementTools } from './coordination.mjs';
-import { runBatch } from './batch.mjs';
+import { runBatch, finalNativeText } from './batch.mjs';
 import { runCode } from './run-code.mjs';
 import {compileWorkflow,executeTapSequence,executeAppAction,chooseAction} from './workflow-v2.mjs';
 import { flagOn } from './element-flags.mjs';
@@ -552,7 +552,7 @@ export class Devices {
     const def = definitions.find(d => d[0] === name);
     if (!def) throw new Error(`Unknown tool: ${name}`);
     const args = def[2].parse(original);
-    if(args.native_text_result && (!this.inBatch || this.batchStep?.next))throw Error('native_text_result is supported only on the final text step of batch_commands. Nothing was dispatched.');
+    if(args.native_text_result && (!['fill','type_text'].includes(name) || args.submit!==false || !args.expected_app || args.return_observation || args.post_action_ocr || this.inBatch&&this.batchStep?.next))throw Error('native_text_result requires non-submitting text with expected_app and no whole-screen observation; it must be final within a batch. Nothing was dispatched.');
     // Invalidate a previous call's AX-only viewport BEFORE dispatching any
     // tool. In particular CUA look/do and batch_commands bypass the default
     // input branch; without this they could reuse portrait size after rotation.
@@ -724,7 +724,9 @@ export class Devices {
           const delivered = result.sent === true && !result.isError && !result.stopped;
           // A target that had to be waited for is compared with the screen it was found on, not the one before the wait.
           const sentTo = this.beforeInput ?? before, signature = sentTo?.elements.length ? sentTo.signature : undefined;
-          if (looks && delivered) result = { ...result, ...await this.readback(signature, { structured: args.return_observation === true, structuredVisual: args.post_action_ocr === true }) };
+          const nativeText=!this.inBatch&&args.native_text_result ? await finalNativeText(this,{tool:name,arguments:args},text(result)) : undefined;
+          if(nativeText)result={...result,native_text_result:nativeText};
+          else if (looks && delivered) result = { ...result, ...await this.readback(signature, { structured: args.return_observation === true, structuredVisual: args.post_action_ocr === true }) };
           else if (touches && delivered && signature !== undefined) result = { ...result, ...await this.changedSince(signature) };
           // Which list the scroll moved, from the reads on either side of it.
           if (name === 'scroll' && looks && delivered && sentTo?.elements.length && this.seen?.elements.length && this.seen.startedAt > this.lastInputAt) result = { ...result, moved: whatMoved(sentTo.elements, this.seen.elements) };
