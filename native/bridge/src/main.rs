@@ -6,6 +6,7 @@ mod gesture;
 mod installation;
 mod pasteboard;
 mod remote;
+mod execution_receipt;
 mod stream;
 
 use gesture::{Drag, Pinch, Strokes, pinch_contacts};
@@ -358,6 +359,9 @@ impl Request {
 async fn main() {
     let result = async {
         let args: Vec<String> = std::env::args().collect();
+        if args.len() == 2 && args[1] == "--build-info" {
+            return Ok(execution_receipt::build_info());
+        }
         if args.len() == 4 && args[1] == "--local-server" {
             return remote::serve_local(&args[2], &args[3]).await;
         }
@@ -474,6 +478,7 @@ async fn execute_connected(
     request: Request,
     media: &mut Option<InputMedia>,
 ) -> Result<Value> {
+    execution_receipt::measure(async {
     if let Request::LaunchApp(request) = request {
         return match apps::launch(adapter, rsd, request).await {
             Err(error) if error.is::<NotSent>() => Err(error),
@@ -714,6 +719,8 @@ async fn execute_connected(
     tokio::time::sleep(Duration::from_millis(300)).await;
     drop(touch);
     action
+    })
+    .await
 }
 
 async fn held_tap(hid: &mut Touch, x: u16, y: u16, ms: u64) -> Result<()> {
