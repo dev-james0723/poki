@@ -93,8 +93,8 @@ async function containerBox(ctx, label) {
 }
 
 // A failed accessibility read counts as an empty tree, so OCR still gets its turn.
-async function readStructure(ctx, maxAge) {
-  try { return await ctx.structure(maxAge); }
+async function readStructure(ctx, maxAge, forInput=false) {
+  try { return await ctx.structure(maxAge,{forInput}); }
   catch (error) { if (stopped(error)) throw error; return { elements: [], unreadable: error.message }; }
 }
 
@@ -127,7 +127,11 @@ async function locate(ctx, find, describe, mustHold, verify = true) {
         // phone-sized image takes seconds.
         if (attempt && remaining() <= 0) break;
         checkWork();
-        seen = await deadline(Math.max(1, remaining()), () => readStructure(ctx, verify && attempt === 0 ? justReadMs : 0));
+        // The normal verified path already reuses a just-completed live read.
+        // Fast taps may use a tighter 200ms window too. Devices.structure
+        // checks native provenance, complete geometry and scene revision;
+        // every input invalidates it, and a miss still reads live AX.
+        seen = await deadline(Math.max(1, remaining()), () => readStructure(ctx, attempt === 0 ? (verify ? justReadMs : 200) : 0,true));
         checkWork();
         let found = find(seen.elements);
         const elapsed = performance.now() - started, quiet = performance.now() - ctx.lastInputAt > quietMs;
@@ -412,6 +416,10 @@ export async function interaction(ctx, name, args) {
     case 'tap_text': {
       const element = await locate(ctx, elements => matching(elements, args.text, args.exact), { missing: (seen, allowedMs) => missingText(args.text, seen, allowedMs), many: found => tooMany(args.text, found) }, undefined, args.verify !== false);
       ctx.expectsForeground = opensApp(element, ctx.seen);
+      // A semantic target and its coordinates came from the same complete
+      // live tree. Rebind only this tightly bounded native geometry; raw
+      // coordinate/CUA input still takes the normal rotation-safe path.
+      ctx.bindSemanticViewport?.();
       return ctx.input({ op: 'tap', ...center(element), duration_ms: 50 });
     }
     case 'swipe': case 'drag': return ctx.input({

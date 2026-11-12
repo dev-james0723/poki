@@ -1,6 +1,22 @@
 use super::*;
 use std::sync::{Arc,atomic::{AtomicUsize,Ordering}};
 
+#[tokio::test(start_paused=true)]
+async fn completed_ax_tree_survives_a_stalled_cleanup_and_drops_it() {
+    struct Guard(Arc<AtomicUsize>);
+    impl Drop for Guard { fn drop(&mut self) { self.0.fetch_add(1, Ordering::SeqCst); } }
+    let dropped=Arc::new(AtomicUsize::new(0));let d=dropped.clone();
+    let start=tokio::time::Instant::now();
+    let result=ax::finish_subscription(Ok(json!({"elements":[]})), async move {
+        let _guard=Guard(d);std::future::pending::<()>().await;
+    }).await.unwrap();
+    assert_eq!(result,json!({"elements":[]}));
+    assert_eq!(dropped.load(Ordering::SeqCst),1);
+    assert_eq!(start.elapsed(),Duration::from_millis(100));
+    let error=ax::finish_subscription::<()>(Err("original read error".into()),async{}).await.unwrap_err();
+    assert_eq!(error.to_string(),"original read error");
+}
+
 #[test]
 fn native_tap_sequence_validates_the_whole_request_before_dispatch() {
     for length in [0,1,9] {

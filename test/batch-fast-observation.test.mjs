@@ -82,6 +82,21 @@ test('the native MCP batch returns its explicit final AX checkpoint without anot
   assert.equal(summary.screen.source,'accessibility');
   assert.equal((await f.events()).filter(e=>e.op==='screenshot'||e.args?.includes('screenshot')).length,0);
 });
+
+test('a just-read semantic target rebinds its matching native viewport without a screenshot',async t=>{
+ const f=await phoneFixture(t);
+ await f.set({appRoot:'Fixture',bundleId:'local.fixture',appName:'Fixture',label:'Open',afterInput:{label:'Done'}});
+ const r=await f.call('batch_commands',{commands:[
+  {tool:'snapshot_ui',arguments:{}},
+  {tool:'tap_text',arguments:{text:'Open',expected_app:'Fixture',verify:false}},
+  {tool:'snapshot_ui',arguments:{}},
+ ]});
+ assert.ok(!r.isError,JSON.stringify(r));
+ const events=await f.events();
+ assert.equal(events.filter(e=>e.op==='tap').length,1);
+ assert.equal(events.filter(e=>e.op==='ax_tree').length,2);
+ assert.equal(events.filter(e=>e.op==='screenshot'||e.args?.includes('screenshot')).length,0);
+});
 test('an AX checkpoint primes the same comparison signature as ordinary reads',async t=>{
   const f=await phoneFixture(t);
   await f.set({appRoot:'Fixture',bundleId:'local.fixture',appName:'Fixture',label:'First'});

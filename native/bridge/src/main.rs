@@ -48,7 +48,7 @@ impl InputMedia {
         adapter: &mut idevice::tcp::handle::AdapterHandle,
         rsd: &mut RsdHandshake,
     ) -> Result<Self> {
-        let stream = stream::start_screen_media_stream(adapter, rsd, 1)
+        let stream = stream::start_input_media_stream(adapter, rsd, 1)
             .await
             .map_err(|e| {
                 if e.is::<NoDisplayService>() {
@@ -65,14 +65,16 @@ impl InputMedia {
             })?;
         let mut receivers = tokio::task::JoinSet::new();
         // The transport queues UDP without a bound. Consume packets while holding the input gate open.
-        for socket in [stream.audio_udp, stream.video_udp] {
+        for socket in stream.audio_udp.into_iter().chain(std::iter::once(stream.video_udp)) {
             receivers.spawn(async move { while socket.recv().await.is_ok() {} });
         }
         trace("input media connected");
         Ok(Self {
             client: stream.client,
             receivers,
-            ready_at: tokio::time::Instant::now() + Duration::from_millis(1000),
+            // Upstream pymobiledevice3 #2036 requires 500ms on slower phones;
+            // never remove this asynchronous HID authentication settle period.
+            ready_at: tokio::time::Instant::now() + Duration::from_millis(500),
             touch: None,
             keyboard: None,
         })

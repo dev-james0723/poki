@@ -8,3 +8,11 @@ test('a fresh direct AX read may seed the bounded local cache',async()=>{const c
 
 test('default AX budget admits the observed five-second healthy read tail',async()=>{let requested;const ctx=context(false);ctx.bridge=async args=>{requested=args;return tree;};await work.run({signal:new AbortController().signal,timings:[]},()=>snapshotUI(ctx,{}));assert.equal(requested.timeout_ms,6000);});
 test('event observation does not claim a current-request start before an older received event',async()=>{const r=await observe(context(true));assert.equal(r.observation.structure_started_at,null);assert.ok(r.observation.request_started_at);});
+
+test('AX diagnostics retain only bounded numeric phase counters',async()=>{
+ const ctx=context(false);
+ ctx.bridge=async()=>({...tree,native_ax:{attempts:1,total_ms:1400,answer_ms:900,cleanup_ms:100,connect_ms:-1,subscribe_ms:Infinity,private_text:'do not export',clipboard:'do not export'}});
+ const r=await observe(ctx);
+ assert.deepEqual(r.native_ax,{attempts:1,total_ms:1400,answer_ms:900,cleanup_ms:100});
+ assert.equal(ctx.seen.liveRead,true);
+});

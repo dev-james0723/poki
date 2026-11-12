@@ -353,9 +353,13 @@ export class Devices {
     return { observation, source, width: frame.width, height: frame.height, units: 'points', foreground, elements: this.elements, total: count, truncated: count > this.elements.length, ...(source === 'ocr' && nativeError ? { fallback_reason: nativeError } : {}) };
   }
   // One accessibility read and no screenshot, so polling costs one native request per attempt.
-  async structure(maxAge = 0) {
+  async structure(maxAge = 0, {forInput=false} = {}) {
     const target = await this.target();
-    if (this.seen?.device === target.id && performance.now() - this.seen.at <= maxAge) return this.seen;
+    if (maxAge > 0 && this.seen?.device === target.id &&
+        this.seen.liveRead === true &&
+        this.seen.revision === this.coordinator.revision(target.id) &&
+        (!forInput || this.seen.rootVerified === true && !promptWarning(this.seen.elements)) &&
+        performance.now() - this.seen.at <= maxAge) return this.seen;
     const started = performance.now(), observedAt = new Date().toISOString(), timings = timingCount();
     const tree = await phase('accessibility', () => this.bridge({ op: 'ax', include_offscreen: false }));
     this.readCosts.set(target.id, performance.now() - started);
@@ -381,7 +385,7 @@ export class Devices {
     const signature = axSignature(elements, tree.foreground);
     return this.seen = {
       device: target.id, revision: this.coordinator.revision(target.id), foreground: tree.foreground,
-      elements, signature, rootVerified, at: performance.now(), startedAt: started, observedAt,
+      elements, signature, rootVerified, liveRead:true, at: performance.now(), startedAt: started, observedAt,
       structure_started_at: observedAt, structure_completed_at: new Date().toISOString(),
       ...(served ? { served } : {}),
     };
@@ -398,6 +402,14 @@ export class Devices {
     const result = await this.viewport();
     if (this.inBatch) this.batchViewportVerified = true;
     return result;
+  }
+  bindSemanticViewport() {
+    const seen=this.seen, age=seen?performance.now()-seen.at:Infinity;
+    if(!seen?.liveRead || !seen.rootVerified || age<0 || age>200 ||
+       seen.device!==this.resolved?.id || seen.revision!==this.coordinator.revision(seen.device) ||
+       promptWarning(seen.elements))return;
+    const viewport=viewportFromAX({elements:seen.elements});
+    if(viewport)this.axSize={device:seen.device,...viewport,revision:seen.revision,at:seen.at};
   }
   // Reading the result back saves the caller a round trip to look. The action has already happened,
   // so a failed read only loses the report; a stop request still surfaces as a stop.

@@ -32,6 +32,16 @@ pub async fn read_tree(
 // later is answered in about a second. The wait is therefore spent on fresh subscriptions.
 const ANSWER_WITHIN: Duration = Duration::from_millis(2000);
 
+// Every subscription owns a disposable socket. Cleanup is best effort and
+// must not hold a completed tree hostage behind a stalled remote write.
+pub(crate) async fn finish_subscription<T>(
+    result: Result<T>,
+    cleanup: impl std::future::Future<Output = ()>,
+) -> Result<T> {
+    let _ = tokio::time::timeout(Duration::from_millis(100), cleanup).await;
+    result
+}
+
 pub async fn read_tree_with_timeout(
     adapter: &mut AdapterHandle,
     rsd: &RsdHandshake,
@@ -39,12 +49,19 @@ pub async fn read_tree_with_timeout(
     wait: Duration,
 ) -> Result<Json> {
     within_budget(wait, async {
+        let started = tokio::time::Instant::now();
+        let mut attempts = 0;
         let deadline = tokio::time::Instant::now() + wait;
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             if remaining.is_zero() { return Err("Native accessibility deadline exceeded".into()); }
+            attempts += 1;
             let answer = subscribe(adapter, rsd, include_offscreen, remaining.min(ANSWER_WITHIN)).await?;
-            if let Some(tree) = answer { return Ok(tree); }
+            if let Some(mut tree) = answer {
+                tree["native_ax"]["attempts"] = attempts.into();
+                tree["native_ax"]["total_ms"] = (started.elapsed().as_millis() as u64).into();
+                return Ok(tree);
+            }
         }
     }).await
 }
@@ -61,12 +78,14 @@ async fn subscribe(
     include_offscreen: bool,
     wait: Duration,
 ) -> Result<Option<Json>> {
+    let started = tokio::time::Instant::now();
     let port = rsd
         .services
         .get("com.apple.accessibility.axAuditDaemon.remoteAXService")
         .ok_or("Native accessibility service is unavailable")?
         .port;
     let mut socket = adapter.connect(port).await?;
+    let connect_ms = started.elapsed().as_millis() as u64;
     let mut capabilities = plist::Dictionary::new();
     capabilities.insert("com.apple.private.DTXBlockCompression".into(), 0.into());
     capabilities.insert("com.apple.private.DTXConnection".into(), 1.into());
@@ -86,6 +105,7 @@ async fn subscribe(
         true,
     )
     .await?;
+    let setup_ms = started.elapsed().as_millis() as u64;
     let result = tokio::time::timeout(wait, async {
         let mut tree = Tree {
             include_offscreen,
@@ -111,6 +131,8 @@ async fn subscribe(
         }
     })
     .await;
+    let answer_ms = started.elapsed().as_millis() as u64;
+    let mut result = finish_subscription(result.ok().transpose(), async {
     let _ = call(
         &mut socket,
         3,
@@ -120,7 +142,16 @@ async fn subscribe(
     )
     .await;
     let _ = socket.shutdown().await;
-    result.ok().transpose()
+    }).await?;
+    if let Some(tree) = result.as_mut() {
+        tree["native_ax"] = json!({
+            "connect_ms": connect_ms,
+            "subscribe_ms": setup_ms.saturating_sub(connect_ms),
+            "answer_ms": answer_ms.saturating_sub(setup_ms),
+            "cleanup_ms": (started.elapsed().as_millis() as u64).saturating_sub(answer_ms),
+        });
+    }
+    Ok(result)
 }
 
 // AX archives contain custom classes. Keep UIDs intact and resolve only fields

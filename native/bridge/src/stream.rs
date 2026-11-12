@@ -25,7 +25,7 @@ const CLIENT_SUPPORTED_FEATURES: u64 = 140;
 pub struct ScreenMediaStream {
     pub client: DisplayServiceClient<Box<dyn ReadWrite>>,
     /// Audio RTP receiver socket (kept bound for the lifetime of the stream).
-    pub audio_udp: UdpSocketHandle,
+    pub audio_udp: Option<UdpSocketHandle>,
     /// Video RTP receiver socket — the HEVC stream.
     pub video_udp: UdpSocketHandle,
 }
@@ -50,6 +50,25 @@ pub async fn start_screen_media_stream(
     handshake: &mut RsdHandshake,
     display_id: i64,
 ) -> Result<ScreenMediaStream, Box<dyn std::error::Error + Send + Sync>> {
+    start_media_stream(adapter, handshake, display_id, true).await
+}
+
+/// HID authentication needs the video session, not screen audio. Avoid an
+/// unrelated audio negotiation and receiver on ordinary touch/keyboard input.
+pub async fn start_input_media_stream(
+    adapter: &mut AdapterHandle,
+    handshake: &mut RsdHandshake,
+    display_id: i64,
+) -> Result<ScreenMediaStream, Box<dyn std::error::Error + Send + Sync>> {
+    start_media_stream(adapter, handshake, display_id, false).await
+}
+
+async fn start_media_stream(
+    adapter: &mut AdapterHandle,
+    handshake: &mut RsdHandshake,
+    display_id: i64,
+    audio: bool,
+) -> Result<ScreenMediaStream, Box<dyn std::error::Error + Send + Sync>> {
     macro_rules! log {
         ($($arg:tt)*) => {{}};
     }
@@ -68,16 +87,15 @@ pub async fn start_screen_media_stream(
             }
         })?;
 
-    let audio_udp = adapter
+    let audio_udp = if audio { Some(adapter
         .bind_udp(0)
         .await
-        .map_err(|e| format!("bind_udp(audio) failed: {e:?}"))?;
+        .map_err(|e| format!("bind_udp(audio) failed: {e:?}"))?) } else { None };
     let video_udp = adapter
         .bind_udp(0)
         .await
         .map_err(|e| format!("bind_udp(video) failed: {e:?}"))?;
     let receiver_ip = adapter.host_ip().to_string();
-    let audio_receiver_port = audio_udp.local_port();
     let receiver_port = video_udp.local_port();
     // The device is the sender; the host (controller) assigns its endpoint too.
     let sender_ip = adapter.peer_ip().to_string();
@@ -100,6 +118,8 @@ pub async fn start_screen_media_stream(
     let client_session_id = uuid::Uuid::new_v4();
 
     // Start the audio stream first to establish the screen-sharing session.
+    if let Some(audio_udp) = audio_udp.as_ref() {
+    let audio_receiver_port = audio_udp.local_port();
     let audio_call_id = uuid::Uuid::new_v4().to_string().to_uppercase();
     let audio_offer = build_screen_audio_offer(&audio_call_id, &call_info)
         .map_err(|e| format!("audio offer build failed: {e:?}"))?;
@@ -119,6 +139,7 @@ pub async fn start_screen_media_stream(
     match client.start_media_stream(audio_params).await {
         Ok(_) => log!("audio stream started (session {client_session_id})"),
         Err(_error) => log!("audio stream unavailable ({_error:?}); continuing with video only"),
+    }
     }
 
     // Start the video stream on the same session.

@@ -27,6 +27,38 @@ pub async fn paste_text(
     submit: bool,
     target: Option<&Target>,
 ) -> Result<serde_json::Value> {
+    let mut phases = PastePhases::new();
+    let result = paste_text_inner(adapter, rsd, keyboard, text, clear, submit, target, &mut phases).await;
+    result.map(|mut receipt| {
+        phases.mark("finish_ms");
+        receipt["native_paste"] = serde_json::json!({"phases":phases.values});
+        receipt
+    })
+}
+
+struct PastePhases {
+    last: std::time::Instant,
+    values: serde_json::Map<String, serde_json::Value>,
+}
+impl PastePhases {
+    fn new() -> Self { Self { last:std::time::Instant::now(), values:Default::default() } }
+    fn mark(&mut self, name: &'static str) {
+        let now=std::time::Instant::now();
+        self.values.insert(name.into(), (now.duration_since(self.last).as_millis() as u64).into());
+        self.last=now;
+    }
+}
+
+async fn paste_text_inner(
+    adapter: &mut AdapterHandle,
+    rsd: &RsdHandshake,
+    keyboard: &mut Keyboard,
+    text: &str,
+    clear: bool,
+    submit: bool,
+    target: Option<&Target>,
+    phases: &mut PastePhases,
+) -> Result<serde_json::Value> {
     super::trace("paste AX initial");
     let Ok(mut initial) = observe(adapter, rsd).await else {
         return Ok(unconfirmed(
@@ -72,6 +104,7 @@ pub async fn paste_text(
         .collect();
     // Backspace on an empty row can delete the row and move the cursor to its neighbor.
     let clear_first = clear && baseline.iter().any(|field| !field.empty());
+    phases.mark("initial_ax_ms");
 
     // A clear-only request does not need or modify the user's clipboard.
     if text.is_empty() {
@@ -107,14 +140,24 @@ pub async fn paste_text(
     // Match the source without resolving promises.
     // A delayed PULL must not block that input path, nor
     // leave a late PULL_REPLY queued on the connection used for SET.
-    let previous_items = tokio::time::timeout(Duration::from_secs(8), async {
+    let previous = tokio::time::timeout(Duration::from_secs(8), async {
         let mut snapshot_client = RemoteXpcClient::new(adapter.connect(port).await?).await?;
         snapshot_client.do_handshake().await?;
-        complete_items(&pull(&mut snapshot_client).await?)
+        let items = complete_items(&pull(&mut snapshot_client).await?)?;
+        Ok::<_, Box<dyn std::error::Error + Send + Sync>>((snapshot_client, items))
     })
     .await
     .ok()
     .and_then(std::result::Result::ok);
+    // Reuse only a connection whose complete PULL_REPLY was consumed and
+    // validated. A timeout/error drops its private socket, so a late reply
+    // cannot be mistaken for the subsequent SET_REPLY.
+    let (snapshot_client, previous_items) = match previous {
+        Some((client,items)) => (Some(client),Some(items)),
+        None => (None,None),
+    };
+    let connection_reused = snapshot_client.is_some();
+    phases.mark("clipboard_snapshot_ms");
     let snapshot_status = if previous_items.is_some() {
         "complete"
     } else {
@@ -170,12 +213,21 @@ pub async fn paste_text(
         "public.utf8-plain-text":{"data":text.as_bytes()},"public.plain-text":{"data":text.as_bytes()},"public.text":{"data":text.as_bytes()}
     }}]);
     let expected = new_items.to_plist();
+    phases.mark("clear_and_encode_ms");
     super::trace("pasteboard connect for SET");
-    let mut client = RemoteXpcClient::new(adapter.connect(port).await?).await?;
-    client.do_handshake().await?;
+    let mut client = match snapshot_client {
+        Some(client) => client,
+        None => {
+            let mut client = RemoteXpcClient::new(adapter.connect(port).await?).await?;
+            client.do_handshake().await?;
+            client
+        }
+    };
+    phases.mark("clipboard_connect_ms");
     super::trace("pasteboard SET");
     client.send_object(xpc!({"command":"SET","pasteboardName":"general","items":new_items,"sourceMetadata":XPCObject::Null}),true).await?;
     check_reply(&client.recv().await?)?;
+    phases.mark("clipboard_set_ms");
     super::trace("paste command V");
     if chord(keyboard, 0x19, &[0xe3]).await.is_err() {
         return Ok(clipboard_result(
@@ -184,6 +236,7 @@ pub async fn paste_text(
             "retained_pending_paste",
         ));
     }
+    phases.mark("paste_dispatch_ms");
     let mut checked = verify(adapter, rsd, &baseline, &others, text, clear).await;
     // This request's own Command-V raised the prompt, so what Allow pastes is the text just set.
     // Return still waits for the read-back below.
@@ -201,6 +254,7 @@ pub async fn paste_text(
         checked = verify(adapter, rsd, &baseline, &others, text, clear).await;
     }
     super::trace("paste verification returned");
+    phases.mark("verification_ms");
     if !matches!(checked.status, Verification::Complete) {
         // The OS may still be waiting to consume this text. Keep it, never
         // send Return, and drop the prior clipboard snapshot from memory when
@@ -226,6 +280,8 @@ pub async fn paste_text(
         None => "unavailable",
     };
     super::trace("paste restoration returned");
+    phases.mark("clipboard_restore_ms");
+    phases.values.insert("clipboard_connection_reused".into(), connection_reused.into());
     let characters = text.chars().count();
     let restored = restore_status == "restored";
     if !checked.changed.is_empty() {
@@ -478,10 +534,36 @@ async fn verify(
     text: &str,
     clear: bool,
 ) -> Checked {
+    verify_observed(&mut LiveObserver { adapter, rsd }, baseline, others, text, clear).await
+}
+
+trait Observer {
+    async fn observe(&mut self) -> Result<serde_json::Value>;
+}
+struct LiveObserver<'a> {
+    adapter: &'a mut AdapterHandle,
+    rsd: &'a RsdHandshake,
+}
+impl Observer for LiveObserver<'_> {
+    async fn observe(&mut self) -> Result<serde_json::Value> {
+        observe(self.adapter, self.rsd).await
+    }
+}
+async fn verify_observed(
+    observer: &mut impl Observer,
+    baseline: &[Field],
+    others: &[Field],
+    text: &str,
+    clear: bool,
+) -> Checked {
     let mut changed = Vec::new();
-    for _ in 0..3 {
-        tokio::time::sleep(Duration::from_millis(400)).await;
-        let Ok(tree) = observe(adapter, rsd).await else {
+    for attempt in 0..3 {
+        // A completed paste needs no speculative wait. Only retry a read that
+        // did not yet confirm this exact field; the dispatch is never repeated.
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_millis(400)).await;
+        }
+        let Ok(tree) = observer.observe().await else {
             continue;
         };
         if let Some(prompt) = paste_prompt(&tree) {
@@ -745,6 +827,48 @@ fn snapshot(value: &plist::Value) -> Result<&plist::Dictionary> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct ScriptedObserver {
+        replies: std::collections::VecDeque<Result<serde_json::Value>>,
+        calls: usize,
+    }
+    impl Observer for ScriptedObserver {
+        async fn observe(&mut self) -> Result<serde_json::Value> {
+            self.calls += 1;
+            self.replies.pop_front().expect("no unexpected AX read")
+        }
+    }
+    #[tokio::test(start_paused = true)]
+    async fn confirmed_paste_is_checked_without_an_initial_delay() {
+        let baseline = fields(&tree(EDITING, ""));
+        let mut observer = ScriptedObserver { replies: [Ok(tree(EDITING, "probe"))].into(), calls: 0 };
+        let start = tokio::time::Instant::now();
+        let checked = verify_observed(&mut observer, &baseline, &[], "probe", true).await;
+        assert!(matches!(checked.status, Verification::Complete));
+        assert_eq!(observer.calls, 1);
+        assert_eq!(start.elapsed(), Duration::ZERO);
+    }
+    #[tokio::test(start_paused = true)]
+    async fn pending_paste_keeps_bounded_delayed_retries() {
+        let baseline = fields(&tree(EDITING, ""));
+        let mut observer = ScriptedObserver { replies: [Ok(tree(EDITING, "")), Err("transient AX failure".into()), Ok(tree(EDITING, "probe"))].into(), calls: 0 };
+        let start = tokio::time::Instant::now();
+        let checked = verify_observed(&mut observer, &baseline, &[], "probe", true).await;
+        assert!(matches!(checked.status, Verification::Complete));
+        assert_eq!(observer.calls, 3);
+        assert_eq!(start.elapsed(), Duration::from_millis(800));
+    }
+    #[tokio::test(start_paused = true)]
+    async fn immediate_read_does_not_accept_text_in_another_field_or_a_prompt() {
+        let baseline = fields(&tree(EDITING, ""));
+        let mut wrong = tree(EDITING, "probe");
+        wrong["elements"][0]["object_id"] = "different-field".into();
+        let mut observer = ScriptedObserver { replies: [Ok(wrong.clone()), Ok(wrong.clone()), Ok(wrong)].into(), calls: 0 };
+        assert!(matches!(verify_observed(&mut observer, &baseline, &[], "probe", true).await.status, Verification::Unconfirmed));
+        let mut observer = ScriptedObserver { replies: [Ok(prompt_tree())].into(), calls: 0 };
+        assert!(matches!(verify_observed(&mut observer, &baseline, &[], "probe", true).await.status, Verification::Permission(_)));
+        assert_eq!(observer.calls, 1);
+    }
 
     // Fields of the Settings search box as the phone sent them, in the first tree of a read.
     const EDITING: u64 = 146031248384;
