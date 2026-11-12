@@ -6,14 +6,14 @@ import { version } from './build-info.mjs';
 
 const catalog = JSON.parse(readFileSync(new URL('./data/tools.json', import.meta.url), 'utf8'));
 const defaultTools = new Set([
-  'poki_mcp_status', 'list_devices', 'select_device', 'list_elements', 'take_screenshot',
+  'poki_mcp_status', 'list_devices', 'select_device', 'snapshot_ui', 'list_elements', 'take_screenshot',
   'get_foreground_app', 'launch_app', 'open_url', 'tap', 'tap_text', 'fill', 'type_text',
   'scroll', 'swipe', 'press_key', 'go_back', 'wait_for', 'handle_alert', 'batch_commands',
   'long_press', 'double_tap', 'drag', 'hide_keyboard', 'press_button',
   'scroll_to', 'terminate_app', 'pinch', 'list_apps', 'get_clipboard',
 ]);
 const instructions = 'When the request already says what to do on the device, use batch_commands for launch_app and steps whose targets are already known; use fill without field for a single visible input, and use exact observed labels when a selector is needed; it is usually the only device call needed. Tapping steps wait for their target, and the reply ends with the visible text. With one device available, skip list_devices and select_device; use them when a call reports several devices. Consecutive calls do not require an explicit device lease. Single-step tools remain for exploring an unknown screen.';
-const readOnly = new Set(['observe_device','list_devices', 'get_device_info', 'take_screenshot', 'get_foreground_app', 'list_elements', 'list_apps', 'get_clipboard', 'list_crashes', 'get_crash', 'wait_for', 'wait']);
+const readOnly = new Set(['snapshot_ui','observe_device','list_devices', 'get_device_info', 'take_screenshot', 'get_foreground_app', 'list_elements', 'list_apps', 'get_clipboard', 'list_crashes', 'get_crash', 'wait_for', 'wait']);
 const guidance = {
   acquire_device: 'Only needed to keep other sessions off a device across several calls. One batch_commands call already runs without interruption, so a single-call task needs no lease. If you take one, keep the returned lease_id, renew before expiry, then release.',
   wait_for: 'The timeout covers device capture, AX, OCR and polling. Success includes the matching observation and its image, so a second screenshot is not needed to inspect the matched state.',
@@ -58,6 +58,7 @@ const actionObservationTools = new Set(['tap', 'double_tap', 'long_press', 'tap_
 const schemaOf = tool => {
   const schemaWithObservations = actionObservationTools.has(tool.name)
     ? { ...tool.inputSchema, properties: { ...tool.inputSchema.properties,
+      expected_app: {type:'string',minLength:1,maxLength:200,description:'Require this exact foreground name or bundle ID before input; mismatch sends nothing.'},
       return_observation: { type: 'boolean', description: 'Request a ref-bearing post-input observation when available.' },
       post_action_ocr: { type: 'boolean', description: 'Capture after stable AX and check image OCR prompts (default false).' } } }
     : tool.name === 'observe_device'

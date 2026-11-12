@@ -320,10 +320,11 @@ export async function readScreen(ctx, { once = false, before, confirmation, stru
 // Whether the screen differs from the one an input was sent to. One differing read settles it; a
 // matching read is confirmed by a second, the same two reads readScreen needs to call a screen still.
 export async function screenChanged(ctx, before, confirmation) {
-  await ctx.settle();
   let seen;
   for (let read = 0; read < 2; read++) {
-    if (read) await pause(pollMs);
+    // Start observation while the app reacts. A changed tree is evidence of the
+    // effect; an early matching tree still waits before it can mean unchanged.
+    if (read) { await ctx.settle(); await pause(pollMs); }
     seen = await readStructure(ctx, 0);
     if (!seen.elements.length) return undefined;
     if (seen.signature !== before) return true;

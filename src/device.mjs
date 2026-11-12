@@ -1,3 +1,4 @@
+import {snapshotUI,viewportFromAX} from './ax-snapshot.mjs';
 import { remoteDevices, nativeRequest } from './remote.mjs';
 import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason, timingCount, timingsSince } from './work.mjs';
 import { Coordination, managementTools } from './coordination.mjs';
@@ -109,7 +110,7 @@ export class Devices {
   ownBackground(id, type) { if (!this.backgroundDevices.has(id)) this.backgroundDevices.set(id, new Set()); this.backgroundDevices.get(id).add(type); }
   unownBackground(id, type) { const owned = this.backgroundDevices.get(id); owned?.delete(type); if (!owned?.size) this.backgroundDevices.delete(id); }
   access(target) { this.coordinator.access(this, target); }
-  changed(target) { this.coordinator.changed(target.id); this.elements = []; this.elementsAt = 0; this.frame = undefined; this.seen = undefined; this.structureViewport = undefined; }
+  changed(target) { this.axSize = undefined; this.coordinator.changed(target.id); this.elements = []; this.elementsAt = 0; this.frame = undefined; this.seen = undefined; this.structureViewport = undefined; }
   async inventory(all = false) {
     const { stdout } = await this.run('python3', [join(root, 'native/devices.py')], 8000);
     const physical = new Map();
@@ -329,6 +330,8 @@ export class Devices {
       this.structureViewport = undefined; this.elements = []; this.elementsAt = 0; this.frame = undefined;
       await this.capture();
     }
+    const nativeViewport = viewportFromAX(tree);
+    if (nativeViewport) { this.size = {device:target.id,...nativeViewport}; this.axSize = {...this.size,revision:this.coordinator.revision(target.id),at:performance.now()}; }
     const viewport = this.size?.device === target.id ? this.size : await this.capture();
     const rootVerified = axRootOrientation(rawElements, viewport) === 'same';
     if (!rootVerified) this.structureViewport = undefined;
@@ -350,6 +353,7 @@ export class Devices {
   // current orientation, so it keeps taking a fresh frame.
   async screenSize() {
     const target = await this.target();
+    if (this.axSize?.device === target.id && this.axSize.revision === this.coordinator.revision(target.id) && performance.now() - this.axSize.at < 500) return this.axSize;
     if (target.kind === 'simulator' && this.size?.device === target.id) return this.size;
     // A batch may retain only a viewport that was captured or validated
     // during THIS batch, not one inherited from a previous AX-only action.
@@ -368,8 +372,9 @@ export class Devices {
   // for the same screen. The batch still ends with one read of the screen.
   checksStep() {
     if (!this.inBatch) return true;
-    const { next, stopOnError } = this.batchStep ?? {};
-    return stopOnError !== false && !geometricTouches.has(next?.tool);
+    const { next, nextIsFinal, stopOnError } = this.batchStep ?? {};
+    return !(nextIsFinal && next?.tool === 'snapshot_ui') &&
+      stopOnError !== false && !geometricTouches.has(next?.tool);
   }
   observationBudget(target) {
     const cost = this.readCosts.get(target.id);
@@ -440,6 +445,11 @@ export class Devices {
   }
   async input(request) {
     const target = await this.target();
+    if (this.expectedApp) {
+      const seen = await this.structure(500);
+      if (![seen.foreground?.bundle_id,seen.foreground?.name].includes(this.expectedApp))
+        return {isError:true,outcome:'not_sent',sent:false,stop_reason:'error',error:'Foreground changed or is unreadable. Nothing was dispatched.'};
+    }
     const frame = 'x' in request || 'x1' in request || request.op === 'pinch' || request.op === 'draw_strokes' ? await this.screenSize() : undefined;
     const command = { ...request };
     if ('x' in command) {
@@ -482,8 +492,9 @@ export class Devices {
     // input branch; without this they could reuse portrait size after rotation.
     // The default input branch may renew it only after its own fresh AX read.
     const previousViewport = this.structureViewport;
-    this.structureViewport = undefined;
-    const previous = this.requested, previousResolved = this.resolved;
+    this.structureViewport = undefined; this.axSize = undefined;
+    const previous = this.requested, previousResolved = this.resolved, previousExpectedApp = this.expectedApp;
+    this.expectedApp = args.expected_app ?? previousExpectedApp;
     // Steps of one batch share a lookup, which runs a Python process and simctl each time.
     const sharesTarget = this.inBatch && args.device === undefined;
     if (!sharesTarget) this.resolved = undefined;
@@ -507,7 +518,7 @@ export class Devices {
       }
       switch (name) {
         case 'acquire_device': return text(await this.coordinator.acquire(this, await this.target(false), args.ttl_seconds ?? 120));
-        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), registered_device_tools: 53, observation_tools: 1, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
+        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), registered_device_tools: 53, observation_tools: 2, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
         case 'list_devices': {
           const devices = await this.describeDevices(args.include_all_simulators);
           return text({ devices, ...(devices.some(d => d.kind === 'physical') ? {} : { notice: noUsbDevice }), ...(args.include_all_simulators ? { simulator_models: await simulatorModels() } : {}) });
@@ -558,6 +569,7 @@ export class Devices {
           const data = extension === '.png' ? frame.original : await sharp(frame.original).jpeg({quality:95}).toBuffer();
           await writeFile(path,data,{flag:args.overwrite?'w':'wx',mode:0o600}); return text({path,bytes:data.length});
         }
+        case 'snapshot_ui': return text(await snapshotUI(this,args));
         case 'list_elements': return text(await this.recognize(args));
         case 'observe_device': {
           const result = await this.recognize(args), frame = this.frame;
@@ -653,6 +665,6 @@ export class Devices {
           return { ...text(result), ...(unchanged || result.screen_change ? { _meta: { ...(unchanged ? { stop_reason: 'no_change' } : {}), ...(result.screen_change ? { verdict: result.screen_change } : {}) } } : {}) };
         }
       }
-    } finally { this.requested=previous; if (!sharesTarget) this.resolved=previousResolved; }
+    } finally { this.expectedApp=previousExpectedApp; this.requested=previous; if (!sharesTarget) this.resolved=previousResolved; }
   }
 }

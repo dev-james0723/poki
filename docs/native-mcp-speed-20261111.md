@@ -1,0 +1,45 @@
+# Native MCP batch and observation speed
+
+Date: 2026-11-11–12 (America/Chicago). Installed measurement baseline: `7e3df7c2662f5128fbca7fa1a9bc6580619a6d73`. Public branch parent: fork main `291a904c42930b7b6a5efd3e92235ce97ca07349`.
+
+## Scope and implementation
+
+Phone operations use the full native Poki MCP integration exclusively. Shell commands are used only for source, service diagnostics and isolated software tests. No new dependency, model request or private-screen upload is introduced. Existing foreground checks, device arbitration, text verification, cancellation and unknown-delivery protections remain in force.
+
+- Known short workflows use one `batch_commands` call, with a final live `snapshot_ui` checkpoint when AX can establish the requested outcome.
+- `batch.mjs` reuses that explicit complete live checkpoint as the final report. It rejects event hints, partial trees, a different device/revision, pre-input observations and failed reads. The screen carries the observation ID and explicitly does not claim animation stability.
+- `device.mjs` omits the intermediate change comparison only immediately before this explicit final checkpoint. Ordinary batches retain the existing unchanged-screen warnings and transition checks.
+- `screenChanged` starts reading while the app reacts. If a changed AX tree arrives, it need not wait out the fixed settle floor first. An early matching tree still waits and receives the existing confirmation checks. The native 300 ms input delivery hold is unchanged.
+
+## Research receipt
+
+Agent Reach 1.6.1 is installed. Its `doctor --json` and referenced `references/dev.md` interface are unavailable; `agent-reach doctor` succeeds but reports the GitHub backend unverified. Official GitHub/web APIs were used as the read-only fallback.
+
+Two existing implementations were reviewed for patterns, not adopted:
+
+1. [Appium XCUITest driver](https://github.com/appium/appium-xcuitest-driver), revision [`e76f78ceee0b6a8c498a4874b0391228ba363ae6`](https://github.com/appium/appium-xcuitest-driver/commit/e76f78ceee0b6a8c498a4874b0391228ba363ae6), 13.0.8 release commit dated 2026-11-08. The actual [LICENSE](https://github.com/appium/appium-xcuitest-driver/blob/e76f78ceee0b6a8c498a4874b0391228ba363ae6/LICENSE) is Apache-2.0. Its [animation settings](https://github.com/appium/appium-xcuitest-driver/blob/e76f78ceee0b6a8c498a4874b0391228ba363ae6/docs/reference/settings.md) demonstrate explicit wait controls. The repository contains tests/docs and the release cites merged fixes #3132/#3134. It requires an additional XCTest/Appium stack; replacing Poki is outside this task and adds maintenance/setup costs.
+2. [Maestro](https://github.com/mobile-dev-inc/maestro), revision [`aaa248d7fd4ca4924444dc027af9c7a62a9be348`](https://github.com/mobile-dev-inc/maestro/commit/aaa248d7fd4ca4924444dc027af9c7a62a9be348), dated 2026-11-05. The actual [LICENSE](https://github.com/mobile-dev-inc/maestro/blob/aaa248d7fd4ca4924444dc027af9c7a62a9be348/LICENSE) is Apache-2.0; its latest merged change includes tests and review fixes. [waitForAnimationToEnd](https://docs.maestro.dev/reference/commands-available/waitforanimationtoend) can proceed early when animations finish, but succeeds when its timeout expires; Poki does not adopt that success-on-timeout behavior. The reviewed README says physical iOS devices are unsupported. [Animation flakiness](https://github.com/mobile-dev-inc/maestro/issues/1703) is a relevant documented limitation.
+
+Security overview pages for both projects were consulted, but this is not a complete vulnerability or transitive-license audit. No external source code or dependencies were copied or installed, so no production dependency/license change is required. The selected strategy combines the already-installed MCP primitives with a small local implementation and borrows only the general early-observation pattern.
+
+## Publication scope
+
+Automatic review rejected a push based on earlier local commits because it would also publish unrelated device/private-workflow history to this public fork. This branch is instead built directly from the fork main, with no imported local commit history. Public main lacked the installed AX-only reader, so this branch includes that minimal reader, tool registration, fresh native viewport use and foreground guards required by the new batch checkpoint. It does not publish local K1/voice grants, device identities, Keychain integrations, earlier private reports, or unrelated native/model experiments. Optional AX event streaming is not exposed by this public addition; it uses live reads. Existing installed native optimizations are preserved locally.
+
+## Verification and physical measurements
+
+New tests cover exact checkpoint reuse, native-MCP integration, malformed/failed/stale/partial/event/wrong-device observations, preservation of semantic dependencies, and early-change versus unchanged waiting. The initial 155-test focused run passed 154 and caught one compatibility regression: ordinary final taps lost their unchanged warning. This was fixed by limiting comparison elision to an explicit trailing snapshot; the affected test and two related tests passed. The final new test file passes 14/14. Initial sandbox fixture startup could not create local sockets; only this task's stalled runner was stopped, and the fixtures were rerun through normal scoped approval with mocked phones.
+
+Physical workflow: warm Calculator Basic mode -> Change Mode -> Scientific -> complete live AX checkpoint. `Sine` must be present in Calculator's final AX tree. Reset/setup are outside the timed interval. The timer covers the native MCP tool call and its full reply, including redundant final reads/fallbacks; it excludes model reasoning between user instruction and tool dispatch. The same three-step batch is used before and after. This does not represent a whole unfamiliar app or a measured human baseline.
+
+Baseline attempts: 27.232 s and 25.811 s reached a complete live AX checkpoint; both then redundantly fell back to screenshot/OCR for the batch report. A third attempt took 40.489 s and failed its AX checkpoint, despite both taps reporting sent. It is retained as a failure, with no input replay. Baseline successful median: 26.5215 s; verified attempts: 2/3. Separate preparation also encountered long observation timeouts and is not presented as task success.
+
+Post-update attempts used the identical batch and phone: 24.300 s and 26.778 s completed with a matching final `observation_id`, `source=accessibility`, and no redundant OCR report. A third took 34.982 s and failed its AX checkpoint, with no input replay. Successful median: 25.539 s, about 3.7% below the baseline successful median of 26.5215 s. Verified attempts remain 2/3 in each phase. These data do not establish a large end-to-end speedup, improved reliability, p95, or an all-app guarantee.
+
+The successful after batches recorded 11.400 s and 12.407 s across their three steps, leaving roughly 13–14 s outside those step timers. To avoid attributing all latency to the phone, native MCP controls that send no phone input were measured: standalone `wait(0)` took 13 ms; two `batch_commands([wait(0)])` calls took 18.143 s and 12.084 s despite step timers of 7 ms and 5 ms. Three isolated software checks of the running checkout's code-integrity guard took 6 ms each. This points to batch admission/queue/outer-call overhead rather than touch execution, but the exact cause is not yet verified. No safety or arbitration gate was bypassed.
+
+The user reports completing the human steps in a total of about 2 s; whether that denotes one trial or all three is being clarified. No human ratio is claimed from an ambiguous report.
+
+The shared installed daemon was updated without changing pairing or the native binary. Native MCP status reports the existing commit marker with 66 tools after unrelated K1 additions. The installed speed source hashes were independently checked: `src/batch.mjs` SHA-256 `bea5f9d75ecbcb978813f45a9ec18d0047f422825bdfa25ea022d549d6cb4a57`; `src/interaction.mjs` SHA-256 `0346049b9c6adec04c8e0b6ced7193773ebe6dcbdffde141880914ad111be2fc`; the intended `checksStep` hunk is present. The code was exercised through native MCP after reload. Subsequent coordinated K1 reloads preserved these hashes; the installed checkout also contains that owner's separate uncommitted work, which is excluded from this branch.
+
+The clean fork branch's final full `npm test` run passed **295/295, 0 failures**. Earlier discovery-count assertions were updated for the added AX tool, and the isolated checkout reused the matching installed agent dependencies for CLI fixtures; no dependency was installed. All phone leases acquired for measurements were released. Phone preparation was interrupted when the owner resumed using the phone; input resumed only after a fresh handoff. The final measured failure was retained, and phone input stopped before human timing.

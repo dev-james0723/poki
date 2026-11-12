@@ -1,7 +1,7 @@
 import { checkWork, phase, stopped, stoppingReason } from './work.mjs';
 import { managementTools } from './coordination.mjs';
 import { definitions } from './tools.mjs';
-import { closestTo } from './interaction.mjs';
+import { closestTo, describeScreen } from './interaction.mjs';
 import { flagOn } from './element-flags.mjs';
 
 const json = value => ({ type: 'text', text: JSON.stringify(value) });
@@ -36,6 +36,32 @@ function advice(reason, failedStep) {
   return `${earlier} Work stopped (${reason}); check the screen before continuing.`;
 }
 
+// An explicit last read is already the caller's checkpoint. Reuse only a complete,
+// live AX result from this device and revision, taken after the last input. Event
+// hints, partial trees and failed reads keep the normal final-read path.
+async function finalSnapshot(ctx, command, result) {
+  if (command?.tool !== 'snapshot_ui' || result?.isError) return;
+  let data;
+  try { data = JSON.parse(result.content?.find(block => block.type === 'text')?.text); }
+  catch { return; }
+  const observation = data?.observation;
+  const started = Date.parse(observation?.structure_started_at);
+  const completed = Date.parse(observation?.structure_completed_at);
+  const inputCompleted = Date.parse(ctx.lastInputCompletedAt);
+  if (data?.source !== 'accessibility' || observation?.source !== 'accessibility' ||
+      observation.input_freshness !== 'live_read' || data.event_source !== 'accessibility_live' ||
+      data.image_captured !== false || data.truncated !== false ||
+      !Array.isArray(data.elements) || !data.elements.length || data.total !== data.elements.length ||
+      !(data.foreground?.bundle_id || data.foreground?.name) ||
+      !Number.isFinite(started) || !Number.isFinite(completed) || completed < started ||
+      (Number.isFinite(inputCompleted) && started < inputCompleted)) return;
+  const target = await ctx.target();
+  if (observation.device !== target.id || observation.revision !== ctx.coordinator.revision(target.id)) return;
+  return { ...describeScreen({foreground:data.foreground,elements:data.elements}),
+    observed_at:observation.structure_completed_at, observation_id:observation.id,
+    screen_stable:false, ...(data.prompt ? {prompt:data.prompt} : {}) };
+}
+
 // A batch is one queued operation, so its steps share a device lookup. A touch is compared with the
 // screen before it when a later step depends on that (see Devices.checksStep); the screen itself is
 // read back once, after the last step.
@@ -53,12 +79,12 @@ export async function runBatch(ctx, args) {
     return { isError: true, content: [json({ step: invalid + 1, tool: commands[invalid].tool, isError: true, elapsed_ms: 0 }), { type: 'text', text: error }, receipt({ completed_steps: 0, stop_reason: 'error', failed_step: { step: invalid + 1, ...commands[invalid], error }, remaining_steps: commands, next: 'Nothing ran. Fix the failed step and send the whole batch again.' })] };
   }
   const blocks = [];
-  let stopReason, failed = false, ran = 0, failure, unchanged;
+  let stopReason, failed = false, ran = 0, failure, unchanged, lastResult;
   ctx.inBatch = true;
   try {
     for (const [index, command] of commands.entries()) {
       const started = performance.now();
-      ctx.batchStep = { next: commands[index + 1], stopOnError };
+      ctx.batchStep = { next: commands[index + 1], nextIsFinal: index + 2 === commands.length, stopOnError };
       let result;
       try {
         checkWork();
@@ -70,6 +96,7 @@ export async function runBatch(ctx, args) {
         if (stopped(error)) stopReason = stoppingReason(error);
       }
       ran++;
+      lastResult = result;
       blocks.push(json({ step: ran, tool: command.tool, isError: Boolean(result.isError), elapsed_ms: Math.round(performance.now() - started) }), ...result.content);
       // A fill that typed the wrong text is an ordinary failure: stop_on_error decides, not this block.
       // A touch with no observed change may still have worked. The batch pauses only to hold back the steps
@@ -92,7 +119,9 @@ export async function runBatch(ctx, args) {
   if (last && last.tool !== 'shut_down_simulator') {
     // dispatch restores both when this batch ends.
     if (last.arguments?.device) { ctx.requested = last.arguments.device; ctx.resolved = undefined; }
-    const { screen, stop_reason } = await phase('batch_readback', () => ctx.readback(undefined, { once: unverified }));
+    const explicit = await finalSnapshot(ctx, commands[ran - 1], lastResult);
+    const { screen, stop_reason } = explicit ? {screen:explicit}
+      : await phase('batch_readback', () => ctx.readback(undefined, { once: unverified }));
     stopReason ??= stop_reason;
     summary.screen = screen;
   }

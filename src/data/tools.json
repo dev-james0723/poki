@@ -1524,6 +1524,31 @@
         },
         "required": []
       }
+    },
+    {
+      "name": "snapshot_ui",
+      "description": "Read a fresh native accessibility snapshot without any screenshot or OCR. Reports foreground, structured elements, real viewport if available, timestamps and truncation. No screenshot-bound refs are issued. If AX is unavailable it fails closed; use take_screenshot separately only when needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "string"
+          },
+          "max_elements": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "include_offscreen": {
+            "type": "boolean"
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 20000
+          }
+        }
+      }
     }
   ]
 }
