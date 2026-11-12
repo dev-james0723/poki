@@ -2,7 +2,7 @@ use super::{Result, not_sent_error};
 use futures_util::TryStreamExt;
 use idevice::{
     IdeviceService, RsdService,
-    core_device::{AppListEntry, AppServiceClient},
+    core_device::{AppListEntry, AppServiceClient, CoreDeviceServiceClient},
     provider::IdeviceProvider,
     rsd::RsdHandshake,
     springboardservices::SpringBoardServicesClient,
@@ -11,6 +11,57 @@ use idevice::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+
+/// Experimental request shape inferred from Apple's local encoder. Device-side
+/// support is unverified; an accepted process token is not a verified page.
+pub(crate) fn open_url_payload(url: &str) -> Result<plist::Dictionary> {
+    let (scheme, tail) = url.split_once(':').ok_or("URL must have a scheme")?;
+    if scheme.is_empty() || tail.is_empty() || !scheme.as_bytes()[0].is_ascii_alphabetic()
+        || !scheme.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'-' | b'.'))
+        || url.chars().any(char::is_control) || url.len() > 8192 {
+        return Err("Invalid URL".into());
+    }
+    let mut empty_options = Vec::new();
+    plist::to_writer_binary(&mut empty_options, &plist::Value::Dictionary(plist::Dictionary::new()))?;
+    let options: plist::Dictionary = [
+        ("arguments".to_string(), plist::Value::Array(vec![])),
+        ("backgroundContentFetchingEnabled".to_string(), false.into()),
+        ("enableCheckedAllocations".to_string(), false.into()),
+        ("environmentVariables".to_string(), plist::Value::Dictionary(plist::Dictionary::new())),
+        ("payloadURL".to_string(), plist::Value::Dictionary([("relative".to_string(), plist::Value::String(url.into()))].into_iter().collect())),
+        ("platformSpecificOptions".to_string(), plist::Value::Data(empty_options)),
+        ("standardIOUsesPseudoterminals".to_string(), true.into()),
+        ("startStopped".to_string(), false.into()),
+        ("terminateExisting".to_string(), false.into()),
+        ("user".to_string(), plist::Value::Dictionary([("active".to_string(), plist::Value::Boolean(true))].into_iter().collect())),
+        ("workingDirectory".to_string(), "$null".into()),
+    ].into_iter().collect();
+    Ok([("options".to_string(), plist::Value::Dictionary(options)),
+        ("standardIOIdentifiers".to_string(), plist::Value::Dictionary(plist::Dictionary::new()))].into_iter().collect())
+}
+
+fn classify_open_url(response: Result<plist::Value>) -> Value {
+    let pid = response.ok().and_then(|v| v.as_dictionary().and_then(|d| d.get("processToken"))
+        .and_then(plist::Value::as_dictionary).and_then(|d| d.get("processIdentifier"))
+        .and_then(plist::Value::as_unsigned_integer));
+    match pid.filter(|pid| *pid > 0) {
+        Some(pid) => json!({"outcome":"accepted","accepted":true,"opened_verified":false,"pid":pid,
+            "instruction":"The system accepted a launch request; verify the page on the device."}),
+        None => json!({"isError":true,"outcome":"unknown","stop_reason":"unknown","retry":"unsafe","opened_verified":false,
+            "instruction":"The URL request may have been delivered. Inspect the device before retrying."}),
+    }
+}
+
+pub async fn open_url(adapter: &mut AdapterHandle, rsd: &RsdHandshake, url: &str) -> Result<Value> {
+    let payload = open_url_payload(url).map_err(not_sent_error)?;
+    let port = rsd.services.get("com.apple.coredevice.appservice")
+        .ok_or("AppService unavailable").map_err(not_sent_error)?.port;
+    let stream = adapter.connect(port).await.map_err(not_sent_error)?;
+    let mut client = CoreDeviceServiceClient::new(stream).await.map_err(not_sent_error)?;
+    // Once invocation begins any failure is uncertain: never retry it here.
+    let reply = client.invoke_with_plist("com.apple.coredevice.feature.launchapplication", payload).await;
+    Ok(classify_open_url(reply.map_err(|e| e.into())))
+}
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -244,6 +295,45 @@ pub async fn app_for_pid(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn url_launch_payload_matches_observed_apple_shape_and_preserves_exact_url() {
+        let url = "https://example.invalid/a?x=1#fragment";
+        let payload = open_url_payload(url).unwrap();
+        assert!(!payload.contains_key("applicationSpecifier"));
+        let options = payload.get("options").unwrap().as_dictionary().unwrap();
+        let expected_keys = ["arguments", "backgroundContentFetchingEnabled", "enableCheckedAllocations",
+            "environmentVariables", "payloadURL", "platformSpecificOptions", "standardIOUsesPseudoterminals",
+            "startStopped", "terminateExisting", "user", "workingDirectory"];
+        assert_eq!(options.len(), expected_keys.len());
+        for key in expected_keys { assert!(options.contains_key(key), "missing {key}"); }
+        assert_eq!(options.get("payloadURL").unwrap().as_dictionary().unwrap().get("relative").unwrap().as_string(), Some(url));
+        assert_eq!(options.get("terminateExisting").unwrap().as_boolean(), Some(false));
+        assert_eq!(options.get("backgroundContentFetchingEnabled").unwrap().as_boolean(), Some(false));
+        assert_eq!(options.get("enableCheckedAllocations").unwrap().as_boolean(), Some(false));
+        assert_eq!(options.get("startStopped").unwrap().as_boolean(), Some(false));
+        assert_eq!(options.get("standardIOUsesPseudoterminals").unwrap().as_boolean(), Some(true));
+        assert_eq!(options.get("workingDirectory").unwrap().as_string(), Some("$null"));
+        assert_eq!(options.get("user").unwrap().as_dictionary().unwrap().get("active").unwrap().as_boolean(),Some(true));
+        let bytes = options.get("platformSpecificOptions").unwrap().as_data().unwrap();
+        let encoded = plist::Value::from_reader(std::io::Cursor::new(bytes)).unwrap();
+        assert!(encoded.as_dictionary().unwrap().is_empty());
+        assert!(payload.get("standardIOIdentifiers").unwrap().as_dictionary().unwrap().is_empty());
+    }
+
+    #[test]
+    fn malformed_or_ambiguous_url_responses_are_never_treated_as_navigation() {
+        let valid = plist::Value::Dictionary([("processToken".to_string(), plist::Value::Dictionary([("processIdentifier".to_string(), plist::Value::Integer(42u64.into()))].into_iter().collect()))].into_iter().collect());
+        let r = classify_open_url(Ok(valid));
+        assert_eq!(r["outcome"], "accepted");
+        assert_eq!(r["opened_verified"], false);
+        let malformed = classify_open_url(Ok(plist::Value::Dictionary(plist::Dictionary::new())));
+        assert_eq!(malformed["outcome"], "unknown");
+        assert_eq!(malformed["retry"], "unsafe");
+        let failure = classify_open_url(Err("synthetic failure".into()));
+        assert_eq!(failure["outcome"], "unknown");
+        assert_eq!(failure["retry"], "unsafe");
+    }
 
     #[test]
     fn launch_name_resolution_prefers_exact_and_rejects_ambiguous_names() {

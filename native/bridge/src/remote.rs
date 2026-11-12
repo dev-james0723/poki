@@ -69,6 +69,7 @@ struct Connection {
     rsd_port: u16,
     provider: Option<idevice::provider::UsbmuxdProvider>,
     media: Option<InputMedia>,
+    observer: Option<super::ax::Monitor>,
 }
 
 struct Session {
@@ -93,6 +94,7 @@ impl Session {
                         rsd_port,
                         provider: Some(provider),
                         media: None,
+            observer: None,
                     }
                 };
                 self.connection = Some(connection);
@@ -151,12 +153,14 @@ impl Session {
             rsd_port: info.server_rsd_port,
             provider: None,
             media: None,
+            observer: None,
         });
         Ok(())
     }
 
     async fn release_input(&mut self) -> Result<()> {
         if let Some(connection) = &mut self.connection {
+            connection.observer = None;
             close_input(&mut connection.media).await?;
         }
         Ok(())
@@ -221,6 +225,7 @@ impl Session {
                 rsd_port,
                 provider,
                 media,
+                observer,
             } = self.connection.as_mut().unwrap();
             let result = tokio::time::timeout(
                 Duration::from_secs(90),
@@ -232,6 +237,7 @@ impl Session {
                         .map(|p| p as &dyn idevice::provider::IdeviceProvider),
                     action.clone(),
                     media,
+                    observer,
                 ),
             )
             .await;
@@ -241,6 +247,7 @@ impl Session {
                 Err(_) => "Remote operation timed out".into(),
             };
             let _ = close_input(media).await;
+            *observer = None;
             // A service or file error does not imply the shared tunnel died.
             // bind_udp checks the adapter task locally without opening a phone service.
             // A phone that vanished without a reset leaves the adapter running, so a socket error also
@@ -262,6 +269,10 @@ impl Session {
             }
             if not_sent || (closed && action.read_only()) {
                 return unsent_reply(&action, error);
+            }
+            if matches!(action, Request::OpenUrl { .. }) {
+                return Ok(json!({"isError":true,"outcome":"unknown","stop_reason":"unknown","retry":"unsafe","opened_verified":false,
+                    "instruction":"The URL request may have been delivered. Inspect the device before retrying."}));
             }
             // Delivery can be ambiguous: the caller must inspect, never replay automatically.
             if local_read {
@@ -340,6 +351,8 @@ fn unsent_reply(
 ) -> Result<Value> {
     match action {
         Request::LaunchApp(_) => Ok(super::apps::not_sent(error)),
+        Request::OpenUrl { .. } => Ok(json!({"isError":true,"outcome":"not_sent","stop_reason":"error","sent":false,"opened_verified":false,
+            "instruction":"The URL request did not reach the device."})),
         Request::Configuration { .. } => Err(error),
         action if action.read_only() => Err(error),
         _ => {
@@ -390,7 +403,9 @@ async fn reply(session: &mut Session, line: &str) -> Value {
             Err(e) => Err(e.into()),
         }
     };
-    response.unwrap_or_else(|e| json!({"isError":true,"transport_error":true,"error":e.to_string(),"screen_change_verified":false}))
+    let mut output = response.unwrap_or_else(|e| json!({"isError":true,"transport_error":true,"error":e.to_string(),"screen_change_verified":false}));
+    output["native_runtime"] = json!({"pid":std::process::id(),"build_id":option_env!("POKI_BUILD_ID").unwrap_or("unversioned"),"version":env!("CARGO_PKG_VERSION"),"features":["bounded_ax","cancellable_ax","warm_hid","optional_ax_events","native_tap_sequence"]});
+    output
 }
 
 pub async fn serve(path: &str) -> Result<Value> {
@@ -429,6 +444,11 @@ pub async fn serve_local(udid: &str, socket_path: &str) -> Result<Value> {
     .await
 }
 
+pub(crate) async fn cancellable_read<T, R, D>(reading: R, disconnected: D) -> Option<T>
+where R: std::future::Future<Output=T>, D: std::future::Future {
+    tokio::select! { biased; _ = disconnected => None, result = reading => Some(result) }
+}
+
 async fn serve_session(mut session: Session, socket_path: &str) -> Result<Value> {
     use std::os::unix::fs::PermissionsExt;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -437,7 +457,10 @@ async fn serve_session(mut session: Session, socket_path: &str) -> Result<Value>
     println!("{}", json!({"ready":true}));
     std::io::stdout().flush()?;
     loop {
-        let (mut socket, _) = listener.accept().await?;
+        let (mut socket, _) = match tokio::time::timeout(Duration::from_secs(5), listener.accept()).await {
+            Ok(accepted) => accepted?,
+            Err(_) => { let _ = session.release_input().await; continue; }
+        };
         let hello = format!("{}\n", json!({"pid":std::process::id()}));
         if socket.write_all(hello.as_bytes()).await.is_err() {
             continue;
@@ -469,7 +492,14 @@ async fn serve_session(mut session: Session, socket_path: &str) -> Result<Value>
         };
         let read_only = request.as_ref().is_ok_and(Request::read_only);
         let mut byte = [0u8; 1];
-        let (output, abandoned) = if read_only {
+        let (output, abandoned) = if matches!(request.as_ref(), Ok(Request::AxTree { .. })) {
+            // AX has a private disposable channel. Cancellation drops that channel,
+            // not the shared pairing tunnel; no old read remains queued behind it.
+            match cancellable_read(reply(&mut session, &line), stream.read(&mut byte)).await {
+                Some(output) => (output, false),
+                None => continue,
+            }
+        } else if read_only {
             // Draining an observation preserves service framing when its caller stops waiting.
             let response = reply(&mut session, &line);
             tokio::pin!(response);
@@ -569,6 +599,7 @@ mod tests {
             rsd_port: 58783,
             provider: None,
             media: None,
+            observer: None,
         };
         (connection, phone)
     }
@@ -887,6 +918,7 @@ mod tests {
         for request in [
             json!({"op":"tap","x":100,"y":200}),
             json!({"op":"launch_app","bundle_id":"local.fixture"}),
+            json!({"op":"open_url","url":"https://example.invalid/test"}),
             json!({"op":"ax_tree"}),
         ] {
             let (sender, mut phones) = mpsc::unbounded_channel();
@@ -918,6 +950,7 @@ mod tests {
                     reply["outcome"] == "not_sent" && reply["stop_reason"] == "error"
                 }
                 ("launch_app", Ok(reply)) => reply["outcome"] == "not_sent",
+                ("open_url", Ok(reply)) => reply["outcome"] == "not_sent" && reply["sent"] == false,
                 _ => false,
             };
             if !reported {
@@ -1049,6 +1082,8 @@ mod tests {
                 .unwrap(),
             receivers: tokio::task::JoinSet::new(),
             ready_at: tokio::time::Instant::now(),
+            touch: None,
+            keyboard: None,
         };
         let (mut connection, phone) = tunnel();
         connection.media = Some(media);

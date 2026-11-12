@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {deadline,phase,checkWork} from './work.mjs';
 import {promptWarning} from './interaction.mjs';
 import {flagOn} from './element-flags.mjs';
+import {snapshotQuerySchema} from './workflow-v2-schema.mjs';
 
 // Only an explicit full-screen native Application frame establishes a viewport.
 // Never estimate it from the furthest child: lists can include offscreen rows.
@@ -17,12 +18,14 @@ export function axSignature(elements,foreground) {
   return JSON.stringify([front,...elements.map(e=>{const f=e.frame??e;return [e.type??e.role,e.label,e.text,e.value,e.focused,Boolean(e.selected),flagOn(e.enabled),f.x,f.y,f.width,f.height];})]);
 }
 const onscreen=(e,v)=>{const f=e.frame??e;return Number.isFinite(f.x)&&Number.isFinite(f.y)&&f.x<v.width&&f.y<v.height&&f.x+f.width>0&&f.y+f.height>0;};
+const normalizedLabel=text=>text.normalize('NFKC').toLocaleLowerCase().trim();
 
 export async function snapshotUI(ctx,args={}) {
   return deadline(args.timeout_ms??6000,async()=>{
     const startedAt=performance.now(),started=new Date().toISOString();
     const target=await ctx.target();
-    const tree=await phase('accessibility',()=>ctx.bridge({op:'ax',include_offscreen:args.include_offscreen??false,timeout_ms:args.timeout_ms??6000,event_stream:false}));
+    if(args.event_stream)ctx.ownNativeResources(target);
+    const tree=await phase('accessibility',()=>ctx.bridge({op:'ax',include_offscreen:args.include_offscreen??false,timeout_ms:args.timeout_ms??6000,event_stream:args.event_stream??false}));
     checkWork();
     if(!Array.isArray(tree.elements)||!tree.elements.length)throw new Error('No native accessibility elements; no screenshot/OCR fallback was performed.');
     const viewport=viewportFromAX(tree);
@@ -33,7 +36,13 @@ export async function snapshotUI(ctx,args={}) {
     const revision=ctx.coordinator.revision(target.id);
     if(viewport&&!fromEvent){ctx.size={device:target.id,...viewport};ctx.axSize={...ctx.size,revision,at:performance.now()-sourceAge};}
     if(viewport&&!args.include_offscreen&&!fromEvent)ctx.seen={device:target.id,revision,foreground:tree.foreground,elements,signature:axSignature(elements,tree.foreground),rootVerified:true,at:performance.now()-sourceAge,startedAt,observedAt:started,structure_started_at:started,structure_completed_at:finished};
+    // Projection reduces the caller's payload, not the iOS subscription cost.
+    // Keep full-tree prompt checks and caches; never make filtered data stand
+    // in for a complete screen or an event stand in for a live input binding.
+    const query=args.query===undefined?undefined:snapshotQuerySchema.parse(args.query);
+    const labels=query?.labels&&new Set(query.labels.map(normalizedLabel));
+    const projected=query?elements.filter(e=>(!query.roles||query.roles.includes(e.role??e.type))&&(!labels||[e.label,e.text,e.value,e.identifier,e.placeholder].some(t=>typeof t==='string'&&labels.has(normalizedLabel(t))))):elements;
     // Structure-only observations intentionally do not mint screenshot-bound tap refs.
-    return {observation:{id:randomUUID(),device:target.id,revision,source:'accessibility',input_freshness:fromEvent?'requires_live_read':'live_read',request_started_at:started,structure_started_at:fromEvent?null:started,structure_completed_at:finished,capture_started_at:null,capture_completed_at:null,atomic:false},source:'accessibility',image_captured:false,native_runtime:tree.native_runtime??null,event_source:tree.observation_source??'accessibility_live',source_age_ms:sourceAge,foreground:tree.foreground??null,width:viewport?.width??null,height:viewport?.height??null,units:'points',geometry_source:viewport?'native_application_frame':null,elements:elements.slice(0,args.max_elements??160).map(({ref,...e})=>e),total:elements.length,truncated:elements.length>(args.max_elements??160),prompt:promptWarning(elements)??null};
+    return {observation:{id:randomUUID(),device:target.id,revision,source:'accessibility',input_freshness:fromEvent?'requires_live_read':'live_read',request_started_at:started,structure_started_at:fromEvent?null:started,structure_completed_at:finished,capture_started_at:null,capture_completed_at:null,atomic:false},source:'accessibility',image_captured:false,native_runtime:tree.native_runtime??null,event_source:tree.observation_source??'accessibility_live',source_age_ms:sourceAge,foreground:tree.foreground??null,width:viewport?.width??null,height:viewport?.height??null,units:'points',geometry_source:viewport?'native_application_frame':null,elements:projected.slice(0,args.max_elements??160).map(({ref,...e})=>e),total:projected.length,truncated:projected.length>(args.max_elements??160),prompt:promptWarning(elements)??null,...(query?{source_total:elements.length,scope:{native_tree_read:'complete',returned:'query_matches',query}}:{})};
   });
 }

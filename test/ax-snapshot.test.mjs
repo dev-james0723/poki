@@ -35,4 +35,4 @@ test('snapshot_ui is discoverable and explicitly read-only',async t=>{
  const f=await fixture(t);const tools=(await f.a.listTools()).tools;const found=tools.find(t=>t.name==='snapshot_ui');assert.ok(found);assert.equal(found.annotations.readOnlyHint,true);
 });
 
-test('status counts both image observation and the new AX-only observation',async t=>{const f=await fixture(t);const d=value(await f.call('poki_mcp_status',{}));assert.equal(d.observation_tools,2);assert.equal(d.total_tools,64);});
+test('status counts both image observation and the new AX-only observation',async t=>{const f=await fixture(t);const d=value(await f.call('poki_mcp_status',{}));assert.equal(d.observation_tools,3);assert.equal(d.total_tools,69);});

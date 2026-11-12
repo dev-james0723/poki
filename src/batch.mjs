@@ -15,7 +15,7 @@ export const stepTool = tool => tool.replace(/^mcp__poki-mcp__/, '');
 export const stopsRun = reason => Boolean(reason) && reason !== 'error' && reason !== 'no_change';
 
 export function invalidStep(command) {
-  if (command.tool === 'batch_commands' || command.tool === 'run_code') return 'Nested batches are not supported, and neither is run_code.';
+  if (['batch_commands','run_code','run_workflow'].includes(command.tool)) return 'Nested batches are not supported; neither are run_code or run_workflow.';
   if (managementTools.has(command.tool)) return 'Call device management tools outside a batch.';
   const definition = definitions.find(([name]) => name === command.tool);
   if (!definition) {

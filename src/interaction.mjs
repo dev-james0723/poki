@@ -7,7 +7,7 @@ const behavior = JSON.parse(readFileSync(new URL('./data/interaction.json', impo
 import { pause, deadline, checkWork, stopped, remaining } from './work.mjs';
 export { pause } from './work.mjs';
 export const justReadMs = 500;
-const patienceMs = 5000, ocrAfterMs = 1000, ocrEveryMs = 2000, pollMs = 100, quietMs = 3000, stableWithinMs = 2500, focusWithinMs = 2000, screenTextLimit = 80;
+const patienceMs = 5000, remotePatienceMs = 45000, ocrAfterMs = 1000, ocrEveryMs = 2000, pollMs = 100, quietMs = 3000, stableWithinMs = 2500, focusWithinMs = 2000, screenTextLimit = 80;
 // Recognizing a phone-sized screen takes seconds on a small host; only a screen accessibility
 // cannot read at all is given this much more time before the search is called off.
 const ocrAllowanceMs = 12000;
@@ -71,11 +71,11 @@ export function closestTo(value, candidates) {
 const names = elements => [...new Set(elements.filter(visible).map(e => e.label ?? e.text ?? e.value ?? e.placeholder).filter(name => typeof name === 'string' && name.trim()))];
 const quoted = list => list.map(item => JSON.stringify(item)).join(', ');
 
-function missingText(value, seen) {
+function missingText(value, seen, allowedMs = patienceMs) {
   const onScreen = names(seen.elements);
-  if (!onScreen.length) return `${JSON.stringify(value)} is not on screen, and nothing readable appeared within ${patienceMs / 1000} seconds (foreground: ${seen.foreground?.bundle_id ?? 'unknown'}). Nothing was tapped. The app may still be loading: use wait_for with a longer timeout, or take_screenshot to look.`;
+  if (!onScreen.length) return `${JSON.stringify(value)} is not on screen, and nothing readable appeared within ${allowedMs / 1000} seconds (foreground: ${seen.foreground?.bundle_id ?? 'unknown'}). Nothing was tapped. The app may still be loading: use wait_for with a longer timeout, or take_screenshot to look.`;
   const closest = closestTo(value, onScreen);
-  return `No visible element matches ${JSON.stringify(value)} after ${patienceMs / 1000} seconds. Nothing was tapped.${closest.length ? ` Closest on screen: ${quoted(closest)}.` : ''} On screen: ${quoted(onScreen.slice(0, 40))}. If it is further along the page, use scroll_to first.`;
+  return `No visible element matches ${JSON.stringify(value)} after ${allowedMs / 1000} seconds. Nothing was tapped.${closest.length ? ` Closest on screen: ${quoted(closest)}.` : ''} On screen: ${quoted(onScreen.slice(0, 40))}. If it is further along the page, use scroll_to first.`;
 }
 
 function tooMany(value, found) {
@@ -113,12 +113,13 @@ const sameField = (a, b) => (a.object_id ?? fieldKey(a)) === (b.object_id ?? fie
 // phone-sized image takes seconds. A target that `mustHold` selects takes two matching reads even
 // on a quiet screen.
 async function locate(ctx, find, describe, mustHold, verify = true) {
+  const allowedMs = (await ctx.target()).remote ? remotePatienceMs : patienceMs;
   let previous, seen = { elements: [] }, last = [];
   try {
-    return await deadline(patienceMs + ocrAllowanceMs, async () => {
+    return await deadline(allowedMs + ocrAllowanceMs, async () => {
       const started = performance.now();
       let nextOcr = ocrAfterMs, ocrMissing = false;
-      const remaining = () => patienceMs - (performance.now() - started);
+      const remaining = () => allowedMs - (performance.now() - started);
       for (let attempt = 0; ; attempt++) {
         // Nothing new starts after the five seconds. An accessibility read is stopped at that
         // boundary as it always was; only a recognition that began inside the window is allowed to
@@ -130,7 +131,7 @@ async function locate(ctx, find, describe, mustHold, verify = true) {
         checkWork();
         let found = find(seen.elements);
         const elapsed = performance.now() - started, quiet = performance.now() - ctx.lastInputAt > quietMs;
-        if (!found.length && elapsed < patienceMs && (elapsed >= nextOcr || !seen.elements.length && quiet)) {
+        if (!found.length && elapsed < allowedMs && (elapsed >= nextOcr || !seen.elements.length && quiet)) {
           nextOcr = elapsed + ocrEveryMs;
           // A host without a recognizer still has accessibility: losing OCR narrows the search,
           // it does not end it.
@@ -142,7 +143,7 @@ async function locate(ctx, find, describe, mustHold, verify = true) {
           checkWork();
         }
         // A readable screen has had its five seconds; a recognizer that already failed gets no more.
-        if (!found.length && (seen.elements.length || ocrMissing) && performance.now() - started >= patienceMs) break;
+        if (!found.length && (seen.elements.length || ocrMissing) && performance.now() - started >= allowedMs) break;
         last = found;
         const position = found.map(place).join(';');
         // Right after input the screen may still be sliding, so a target has to hold its place across two reads.
@@ -163,8 +164,8 @@ async function locate(ctx, find, describe, mustHold, verify = true) {
     // The caller's own cancellation or deadline is not this one.
     checkWork();
     if (last.length > 1) throw new Error(describe.many(last));
-    if (last.length) throw new Error(`The target kept moving for ${patienceMs / 1000} seconds. Nothing was sent to it. Look at the screen before retrying.`);
-    throw new Error(describe.missing(seen));
+    if (last.length) throw new Error(`The target kept moving for ${allowedMs / 1000} seconds. Nothing was sent to it. Look at the screen before retrying.`);
+    throw new Error(describe.missing(seen, allowedMs));
   }
 }
 
@@ -232,12 +233,26 @@ export function describeScreen(seen, elements = seen.elements, source = 'accessi
 // read it, because OCR text alone cannot say whether anything moved. Over a slow connection one read
 // can take seconds, so the reads stop when another would not finish inside the caller's deadline, and
 // the last one is reported with screen_stable false rather than lost.
-export async function readScreen(ctx, { once = false, before, confirmation, structured = false, structuredVisual = false } = {}) {
+export async function readScreen(ctx, { once = false, before, confirmation, structured = false, structuredVisual = false, axBudgetMs, preferOcr = false } = {}) {
   await ctx.settle();
   const started = performance.now();
   const cost = () => ctx.readCost?.() ?? 0;
   // A batch that ends on a touch has just read the screen to see whether it changed.
-  let seen = await readStructure(ctx, once ? 0 : justReadMs), stable = false;
+  // Fast, unverified batch readbacks must not wait the full native AX retry
+  // horizon before using the already-supported screenshot/OCR fallback.
+  // Timeouts only abandon observation, never replay the dispatched input.
+  const budgetedRead = async () => {
+    if(once && preferOcr) return { elements: [], unreadable: 'ax_cooldown' };
+    if(!once || axBudgetMs === undefined) return readStructure(ctx, once ? 0 : justReadMs);
+    try {
+      return await deadline(Math.max(1, Math.min(20000, axBudgetMs)), () => readStructure(ctx, 0));
+    } catch(error) {
+      if(error?.name !== 'TimeoutError') throw error;
+      checkWork(); // A caller cancellation/deadline still wins.
+      return { elements: [], unreadable: 'bounded_ax_observation_timeout' };
+    }
+  };
+  let seen = await budgetedRead(), stable = false;
   // A delayed confirming read may be a new object yet represent the same stable AX tree.
   let reuseStable = false;
   // A read that began before the last input shows the screen the input was sent to, never the current one.
@@ -312,6 +327,7 @@ export async function readScreen(ctx, { once = false, before, confirmation, stru
     signature: compared ? seen.signature : undefined,
     ...(structuredObservation ? { structuredObservation } : {}),
     screen: { ...describeScreen(seen, elements, compared ? 'accessibility' : 'ocr'),
+      ...(seen.unreadable === 'bounded_ax_observation_timeout' ? { ax_timeout: true } : {}),
       ...(compared && !stable ? { screen_stable: false } : {}),
       ...(warning ? { prompt: warning } : {}) },
   };
@@ -394,7 +410,7 @@ export async function interaction(ctx, name, args) {
   switch (name) {
     case 'tap': case 'double_tap': case 'long_press': return tap(args, name);
     case 'tap_text': {
-      const element = await locate(ctx, elements => matching(elements, args.text, args.exact), { missing: seen => missingText(args.text, seen), many: found => tooMany(args.text, found) }, undefined, args.verify !== false);
+      const element = await locate(ctx, elements => matching(elements, args.text, args.exact), { missing: (seen, allowedMs) => missingText(args.text, seen, allowedMs), many: found => tooMany(args.text, found) }, undefined, args.verify !== false);
       ctx.expectsForeground = opensApp(element, ctx.seen);
       return ctx.input({ op: 'tap', ...center(element), duration_ms: 50 });
     }
@@ -487,9 +503,9 @@ export async function interaction(ctx, name, args) {
       let target = named
         ? shown.find(e => isTextInput(e) && (referred ? e.object_id === referred : covers(e, aim)))
         : await locate(ctx, elements => inputs(shown = elements), args.field
-          ? { missing: seen => missingText(args.field, seen), many: found => `${tooMany(args.field, found)} Nothing was typed. After the tap, use type_text to enter text at the cursor.` }
+          ? { missing: (seen, allowedMs) => missingText(args.field, seen, allowedMs), many: found => `${tooMany(args.field, found)} Nothing was typed. After the tap, use type_text to enter text at the cursor.` }
           : {
-            missing: seen => `No text field is on screen after ${patienceMs / 1000} seconds. Nothing was typed. On screen: ${quoted(names(seen.elements).slice(0, 40))}.`,
+            missing: (seen, allowedMs) => `No text field is on screen after ${allowedMs / 1000} seconds. Nothing was typed. On screen: ${quoted(names(seen.elements).slice(0, 40))}.`,
             many: found => `fill needs field when several text fields are visible; found ${found.length}: ${quoted(names(found))}. Nothing was typed.`,
           // A tap goes to coordinates, and a list keeps sliding while the keyboard comes up. A field already being edited takes no tap.
           }, ([field]) => isTextInput(field) && !field.focused);
@@ -639,7 +655,7 @@ export async function interaction(ctx, name, args) {
         }
         return [];
       }, {
-        missing: seen => `Could not identify ${args.button ? `one alert button for ${JSON.stringify(args.button)}` : 'an alert button'} after ${patienceMs / 1000} seconds. Nothing was tapped. On screen: ${quoted(names(seen.elements).slice(0, 40))}.`,
+        missing: (seen, allowedMs) => `Could not identify ${args.button ? `one alert button for ${JSON.stringify(args.button)}` : 'an alert button'} after ${allowedMs / 1000} seconds. Nothing was tapped. On screen: ${quoted(names(seen.elements).slice(0, 40))}.`,
         many: found => `More than one alert button matches. Nothing was tapped. ${JSON.stringify(found.map(e => ({ label: e.label ?? e.text, ...center(e) })))}`,
       });
       if (purchase) return purchase;

@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { root, stateDir } from './config.mjs';
-import { checkWork, signal, phase } from './work.mjs';
+import { checkWork, signal, phase, remainingMs } from './work.mjs';
 
 const starting = new Map();
 const localHelpers = new Map();
@@ -103,6 +103,7 @@ async function socketFor(target) {
 
 export async function nativeRequest(target, request) {
   checkWork();
+  if (request.op === "ax_tree") request = { ...request, timeout_ms: remainingMs(Math.min(request.timeout_ms ?? 20000,20000)) };
   const callerSignal = signal();
   const { socket, path } = await phase('native_helper', () => socketFor(target));
   try { checkWork(); } catch (error) { socket.destroy(); throw error; }
@@ -114,7 +115,7 @@ export async function nativeRequest(target, request) {
       socket.destroy();
     };
     const onAbort = () => abort(callerSignal.reason);
-    const timer = setTimeout(() => abort(new DOMException('Remote operation timed out; inspect before retrying input.', 'TimeoutError')), 120000);
+    const timer = setTimeout(() => abort(new DOMException(readOnly.has(request.op) ? 'Remote read timed out; no input was sent.' : 'Remote operation timed out; inspect before retrying input.', 'TimeoutError')), 120000);
     callerSignal?.addEventListener('abort', onAbort, { once: true });
     lines.on('line', line => {
       if (abortReason) return;
@@ -128,7 +129,7 @@ export async function nativeRequest(target, request) {
       } else { outcome = value; socket.end(); }
     });
     const helperName = target.remote ? 'Remote' : 'Native';
-    socket.on('error', () => { abortReason ??= new Error(!target.remote && readOnly.has(request.op) ? 'Native helper connection closed during a read.' : `${helperName} helper connection closed. Input may have been delivered; inspect before retrying.`); });
+    socket.on('error', () => { abortReason ??= new Error(readOnly.has(request.op) ? `${helperName} helper connection closed during a read; no input was sent.` : `${helperName} helper connection closed. Input may have been delivered; inspect before retrying.`); });
     socket.once('close', async () => {
       clearTimeout(timer); lines.close();
       callerSignal?.removeEventListener('abort', onAbort);

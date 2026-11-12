@@ -13,7 +13,7 @@ const readEndpoint = async () => {
   if (!entry.enabled || url.hostname !== '127.0.0.1' || url.protocol !== 'http:' || url.pathname !== '/mcp') throw new Error('Invalid local MCP endpoint');
   return { url, token: entry.token };
 };
-let endpoint = await readEndpoint();
+let endpoint;
 const session = process.env.POKI_MCP_SESSION ?? randomUUID();
 const send = (path, init) => {
   const headers = new Headers(init?.headers);
@@ -27,6 +27,7 @@ const lost = error => error.name === 'TypeError' && error.cause ? new Error('The
 // never ran the request, so sending it once more cannot repeat anything on the device. Any other lost
 // connection can, so that one is reported and not sent again.
 async function request(path, init) {
+  endpoint ??= await readEndpoint();
   try {
     const response = await send(path, init);
     if (response.status !== 401) return response;
@@ -48,15 +49,33 @@ const control = (path, extra = {}) => {
   controls.add(result); result.finally(() => controls.delete(result)).catch(() => {});
   return result;
 };
-const remote = new Client({ name: 'poki-mcp-bridge', version });
-await remote.connect(new StreamableHTTPClientTransport(endpoint.url, { fetch: (input, init) => request(new URL(input).pathname, init) }));
+// Local tool discovery does not depend on a running daemon. A chat keeps the
+// native catalog while launchd restarts the service; execution connects lazily.
+let remote, opening;
+function connection() {
+  if (remote) return Promise.resolve(remote);
+  return opening ??= (async () => {
+    endpoint = await readEndpoint();
+    const client = new Client({ name: 'poki-mcp-bridge', version });
+    try {
+      await client.connect(new StreamableHTTPClientTransport(endpoint.url, { fetch: (input, init) => request(new URL(input).pathname, init) }));
+      remote = client;
+      return client;
+    } catch (error) {
+      await client.close().catch(() => {});
+      throw error;
+    }
+  })().finally(() => { opening = undefined; });
+}
 const server = createServer(async (name, args, extra) => {
   const id = randomUUID();
   const cancel = () => { void control('/request/cancel', { 'x-poki-request': id }).catch(() => {}); };
   extra.signal.addEventListener('abort', cancel, { once: true });
   try {
     extra.signal.throwIfAborted();
-    return await remote.callTool({ name, arguments: args, _meta: { 'poki/request_id': id } }, { timeout: 3700000, signal: extra.signal });
+    const client = await connection();
+    extra.signal.throwIfAborted();
+    return await client.callTool({ name, arguments: args, _meta: { 'poki/request_id': id } }, { timeout: 3700000, signal: extra.signal });
   } finally { extra.signal.removeEventListener('abort', cancel); }
 });
 const transport = new StdioServerTransport();
@@ -64,9 +83,10 @@ await server.connect(transport);
 let stopping;
 function stop() {
   return stopping ??= (async () => {
-    await control('/session/close').catch(() => {});
+    if (opening) await opening.catch(() => {});
+    if (remote) await control('/session/close').catch(() => {});
     await Promise.allSettled([...controls]);
-    await server.close(); await remote.close();
+    await server.close(); await remote?.close();
   })();
 }
 process.stdin.once('end', () => { void stop(); });

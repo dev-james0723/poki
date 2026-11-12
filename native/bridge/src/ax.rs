@@ -38,21 +38,20 @@ pub async fn read_tree_with_timeout(
     include_offscreen: bool,
     wait: Duration,
 ) -> Result<Json> {
-    let deadline = tokio::time::Instant::now() + wait;
-    loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        let answer = subscribe(adapter, rsd, include_offscreen, remaining.min(ANSWER_WITHIN)).await?;
-        if let Some(tree) = answer {
-            return Ok(tree);
+    within_budget(wait, async {
+        let deadline = tokio::time::Instant::now() + wait;
+        loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() { return Err("Native accessibility deadline exceeded".into()); }
+            let answer = subscribe(adapter, rsd, include_offscreen, remaining.min(ANSWER_WITHIN)).await?;
+            if let Some(tree) = answer { return Ok(tree); }
         }
-        if tokio::time::Instant::now() >= deadline {
-            return Err(format!(
-                "Native accessibility tree did not arrive within {} seconds",
-                wait.as_secs()
-            )
-            .into());
-        }
-    }
+    }).await
+}
+
+pub(crate) async fn within_budget<T>(wait: Duration, operation: impl std::future::Future<Output=Result<T>>) -> Result<T> {
+    tokio::time::timeout(wait, operation).await
+        .map_err(|_| format!("Native accessibility deadline exceeded after {} ms", wait.as_millis()))?
 }
 
 // One subscription; None when it was not answered within `wait`.
@@ -583,4 +582,87 @@ async fn acknowledge(socket: &mut impl ReadWrite, message: &Message) -> Result<(
     );
     socket.write_all(&reply.serialize()).await?;
     Ok(())
+}
+
+// Optional event observer. Only self-contained full-tree messages are published;
+// partial updates are ignored instead of merging old app roots into new ones.
+#[derive(Clone)]
+struct EventTree { tree: Json, at: tokio::time::Instant, sequence: u64 }
+pub(crate) struct Monitor {
+    receiver: tokio::sync::watch::Receiver<Option<EventTree>>,
+    task: tokio::task::JoinHandle<()>,
+    invalidated_at: tokio::time::Instant,
+    include_offscreen: bool,
+}
+impl Drop for Monitor { fn drop(&mut self) { self.task.abort(); } }
+pub(crate) fn event_is_fresh(at: tokio::time::Instant, invalidated_at: tokio::time::Instant, max_age: Duration) -> bool {
+    at >= invalidated_at && at.elapsed() <= max_age
+}
+impl Monitor {
+    async fn start(adapter: &mut AdapterHandle, rsd: &RsdHandshake, include_offscreen: bool) -> Result<Self> {
+        let invalidated_at=tokio::time::Instant::now();
+        let port=rsd.services.get("com.apple.accessibility.axAuditDaemon.remoteAXService")
+            .ok_or("Native accessibility service is unavailable")?.port;
+        let mut socket=adapter.connect(port).await?;
+        let mut capabilities=plist::Dictionary::new();
+        capabilities.insert("com.apple.private.DTXBlockCompression".into(),0.into());
+        capabilities.insert("com.apple.private.DTXConnection".into(),1.into());
+        call(&mut socket,1,"_notifyOfPublishedCapabilities:",Value::Dictionary(capabilities),false).await?;
+        call(&mut socket,2,"clientNeedsAccessibility:",true.into(),true).await?;
+        let (sender,receiver)=tokio::sync::watch::channel(None);
+        let task=tokio::spawn(async move {
+            let mut sequence=0u64;
+            loop {
+                let Ok(message)=Message::from_reader(&mut socket).await else {break};
+                if acknowledge(&mut socket,&message).await.is_err(){break;}
+                let Some(AuxValue::Array(bytes))=message.aux.as_ref().and_then(|aux|aux.values.first()) else {continue};
+                let Ok(outer)=Archive::parse(bytes) else {continue};
+                let Some(data)=outer.data(outer.root()) else {continue};
+                let Ok(archive)=Archive::parse(data) else {continue};
+                let mut tree=Tree{include_offscreen,..Tree::default()};
+                if tree.update(&archive).is_err()||!tree.ready(){continue;}
+                sequence=sequence.saturating_add(1);
+                if sender.send(Some(EventTree{tree:tree.json(),at:tokio::time::Instant::now(),sequence})).is_err(){break;}
+            }
+        });
+        Ok(Self{receiver,task,invalidated_at,include_offscreen})
+    }
+    pub(crate) fn invalidate(&mut self) {self.invalidated_at=tokio::time::Instant::now();}
+    fn latest(&self)->Option<Json> {
+        if self.task.is_finished(){return None;}
+        let event=self.receiver.borrow().clone()?;
+        if !event_is_fresh(event.at,self.invalidated_at,Duration::from_millis(500)){return None;}
+        let mut tree=event.tree;
+        tree["observation_source"]=json!("accessibility_event");
+        tree["source_age_ms"]=json!(event.at.elapsed().as_millis() as u64);
+        tree["event_sequence"]=json!(event.sequence);
+        Some(tree)
+    }
+    async fn next(&mut self, wait:Duration)->Option<Json> {
+        if let Some(tree)=self.latest(){return Some(tree);}
+        tokio::time::timeout(wait,async {
+            loop {
+                if self.receiver.changed().await.is_err(){return None;}
+                if let Some(tree)=self.latest(){return Some(tree);}
+            }
+        }).await.ok().flatten()
+    }
+}
+
+pub(crate) async fn read_streamed(adapter:&mut AdapterHandle,rsd:&RsdHandshake,observer:&mut Option<Monitor>,include_offscreen:bool,wait:Duration)->Result<Json> {
+    within_budget(wait,async {
+        let deadline=tokio::time::Instant::now()+wait;
+        let cold=observer.as_ref().is_none_or(|o|o.task.is_finished()||o.include_offscreen!=include_offscreen);
+        if cold { *observer=Monitor::start(adapter,rsd,include_offscreen).await.ok(); }
+        if let Some(observer)=observer.as_mut() {
+            let event_budget=Duration::from_millis(if cold {1500}else{120}).min(deadline.saturating_duration_since(tokio::time::Instant::now()));
+            if let Some(tree)=observer.next(event_budget).await{return Ok(tree);}
+        }
+        let remaining=deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero(){return Err("Native accessibility event deadline exceeded".into());}
+        let mut tree=read_tree_with_timeout(adapter,rsd,include_offscreen,remaining).await?;
+        tree["observation_source"]=json!("accessibility_live_fallback");
+        tree["source_age_ms"]=json!(0);
+        Ok(tree)
+    }).await
 }
