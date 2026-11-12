@@ -5,6 +5,32 @@ import {work} from '../src/work.mjs';
 
 const scope={apps:['Clock','Settings'],max_calls:3,ttl_seconds:60,purpose:'Observed navigation benchmark'};
 const args={expected_app:'Clock',goal:'Measure elapsed time with laps',labels:['Timers','Stopwatch'],use_model:true};
+test('operator disables Jev before observation, approval or model access',async t=>{
+ const previous=process.env.POKI_JEV_DISABLED;
+ t.after(()=>{if(previous===undefined)delete process.env.POKI_JEV_DISABLED;else process.env.POKI_JEV_DISABLED=previous;});
+ process.env.POKI_JEV_DISABLED='1';
+ const f=fixture();
+ const result=await chooseAction(f.ctx,{...args,model_session:scope},f.hooks);
+ assert.equal(result.reason,'jev_disabled_by_operator');
+ assert.equal(result.model_calls,0);
+ assert.deepEqual(f.counts(),{approvals:0,requests:0,reads:0});
+ const local=await chooseAction(f.ctx,{...args,exact_label:'Stopwatch'},f.hooks);
+ assert.equal(local.source,'local');assert.equal(local.label,'Stopwatch');
+ const invalid=await chooseAction(f.ctx,{...args,exact_label:'Not present'},f.hooks);
+ assert.equal(invalid.reason,'jev_disabled_by_operator');
+ assert.equal(f.counts().requests,0);assert.equal(f.counts().approvals,0);
+});
+test('disabling Jev revokes an existing model session without another paid request',async t=>{
+ const previous=process.env.POKI_JEV_DISABLED;
+ t.after(()=>{if(previous===undefined)delete process.env.POKI_JEV_DISABLED;else process.env.POKI_JEV_DISABLED=previous;});
+ delete process.env.POKI_JEV_DISABLED;
+ const f=fixture();await chooseAction(f.ctx,{...args,model_session:scope},f.hooks);
+ process.env.POKI_JEV_DISABLED='1';
+ assert.equal((await chooseAction(f.ctx,{...args,use_session:true},f.hooks)).reason,'jev_disabled_by_operator');
+ delete process.env.POKI_JEV_DISABLED;
+ assert.equal((await chooseAction(f.ctx,{...args,use_session:true},f.hooks)).reason,'model_session_missing');
+ assert.equal(f.counts().requests,1);assert.equal(f.counts().approvals,1);
+});
 function fixture(){
  let approvals=0,requests=0,reads=0,now=Date.now();
  const lease={lease_id:'lease-a',device:'phone',state:'active'};

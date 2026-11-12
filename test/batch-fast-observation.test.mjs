@@ -33,6 +33,19 @@ test('batch timing distinguishes queue admission from execution without exposing
   assert.equal(timing.readback_ms,0);
   assert.deepEqual(Object.keys(timing).sort(),['batch_ms','queue_ms','readback_ms','steps_ms']);
 });
+test('source gate and IPC durations are visible outside the user script result',async t=>{
+ const f=await phoneFixture(t);
+ await f.set({appRoot:'Fixture',bundleId:'local.fixture',appName:'Fixture',label:'Ready'});
+ const out=await f.call('run_code',{code:"await tools.snapshot_ui({});return {ok:true};",max_tool_calls:1});
+ assert.ok(!out.isError,JSON.stringify(out));const s=JSON.parse(out.content[0].text);
+ assert.deepEqual(s.result,{ok:true});assert.equal(s.calls.length,1);
+ const c=s.calls[0];assert.ok(c.timing.source_freshness_ms>0);
+ assert.ok(c.timing.target_resolution_ms>0);
+ assert.ok(c.timing.transport.response_wait_ms>0);
+ assert.ok(Number.isFinite(c.timing.transport.identity_wait_ms));assert.ok(Number.isFinite(c.timing.transport.close_wait_ms));
+ assert.ok(s.timing.phases.code_freshness.count>=2);assert.ok(s.timing.phases.native_response.count>=1);
+ assert.doesNotMatch(JSON.stringify(c.timing),/Fixture|local\.fixture|\/Users|clipboard|token/i);
+});
 test('a complete trailing live snapshot is the batch readback, without a second screen read',async()=>{
   const f=fixture();
   const result=await inside(()=>runBatch(f.ctx,{commands}));

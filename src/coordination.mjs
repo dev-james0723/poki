@@ -100,7 +100,7 @@ export class Coordination {
           const last = result.content?.at(-1);
           const elapsed = phase => op.timings.find(t => t.phase === phase)?.elapsed_ms ?? 0;
           const phases = {};
-          for (const stage of op.timings) if (['accessibility','native_helper','native_request','external_process','batch_readback','screen_capture','ocr','input','recording_recovery'].includes(stage.phase)) {
+          for (const stage of op.timings) if (['code_freshness','target_resolution','accessibility','native_helper','native_request','native_identity','native_response','native_close','external_process','batch_readback','screen_capture','ocr','input','recording_recovery'].includes(stage.phase)) {
             const entry = phases[stage.phase] ??= {count:0,total_ms:0};
             entry.count++;entry.total_ms=Math.round((entry.total_ms+(stage.elapsed_ms??0))*100)/100;
           }

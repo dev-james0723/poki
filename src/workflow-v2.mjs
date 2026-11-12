@@ -126,11 +126,15 @@ async function externalProposal(input,options) {
 }
 
 export async function chooseAction(ctx,original,{observe=snapshotUI,approve=askHuman,propose=externalProposal,now=Date.now}={}) {
-  const args=choiceSchema.parse(original),target=await ctx.target();
+  const args=choiceSchema.parse(original);
   const timing={decision_ms:0,observation_ms:0,approval_ms:0};
   const measured=async(name,fn)=>{const start=performance.now();try{return await fn();}finally{timing[name]+=performance.now()-start;}};
   const timings=()=>Object.fromEntries(Object.entries(timing).map(([k,v])=>[k,Math.round(v*100)/100]));
   const stop=reason=>({action_id:'STOP',reason,source:'local',execution_authorized:false,model_calls:0,decision_timing:timings()});
+  if(process.env.POKI_JEV_DISABLED==='1'&&args.use_model&&!args.exact_label){
+    revokeDecisionSession(ctx);return stop('jev_disabled_by_operator');
+  }
+  const target=await ctx.target();
   const scoped=args.use_session||Boolean(args.model_session);
   if(scoped&&(!args.use_model||args.exact_label))return stop('model_session_requires_model_only');
   if(args.model_session){
@@ -155,6 +159,7 @@ export async function chooseAction(ctx,original,{observe=snapshotUI,approve=askH
   const options={expectedDevice:target.id,maxAgeMs:3500,currentRevision:()=>ctx.coordinator.revision(target.id),signal:signal()};
   let answer=await measured('decision_ms',()=>selectAction(input,options)),modelCalls=0,grant;
   if(answer.action_id==='REOBSERVE'&&args.use_model){
+    if(process.env.POKI_JEV_DISABLED==='1'){revokeDecisionSession(ctx);return stop('jev_disabled_by_operator');}
     if(args.model_session || !args.use_session){
       const scope=args.model_session;
       const question=scope

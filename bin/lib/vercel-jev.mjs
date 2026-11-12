@@ -62,6 +62,7 @@ export function normalizeGatewayAnswer(data) {
 export function makeGatewayJevRequest({fetchImpl=fetch,getKey=readGatewayKey,onDecisionMetadata,model=GATEWAY_MODEL}={}) {
   if(typeof fetchImpl!=='function'||typeof getKey!=='function')throw new TypeError('Missing gateway transport');
   return async function requestVercelJev({url,body,signal}) {
+    if(process.env.POKI_JEV_DISABLED==='1')throw new Error('Jev disabled by operator');
     const prepared=prepareGatewayRequest({url,body},{model});
     const key=await getKey();
     if(signal?.aborted)throw signal.reason??new Error('Request cancelled');

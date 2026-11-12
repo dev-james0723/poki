@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import { deadline, checkWork, signal, stoppingReason } from './work.mjs';
+import { deadline, checkWork, signal, stoppingReason, timingCount, timingsSince } from './work.mjs';
 import { invalidStep, stepTool, stopsRun } from './batch.mjs';
 import { normalizeCode } from './normalize.mjs';
 
@@ -83,7 +83,7 @@ async function drive(ctx, code, input, maxCalls) {
       const toolArgs = JSON.parse(message.argsJson);
       const problem = invalidStep({ tool: name, arguments: toolArgs });
       if (problem) { failed(message.id, { tool: name, elapsed_ms: 0, isError: true, error: problem }, problem); continue; }
-      const started = performance.now();
+      const started = performance.now(),timingFrom=timingCount();
       let result, dispatchError;
       try { checkWork(); result = await ctx.dispatch(name, toolArgs); }
       catch (error) {
@@ -93,12 +93,14 @@ async function drive(ctx, code, input, maxCalls) {
         dispatchError = error.message;
       }
       const elapsed_ms = Math.round(performance.now() - started);
-      if (dispatchError) { failed(message.id, { tool: name, elapsed_ms, isError: true, error: cap(dispatchError) }, dispatchError); continue; }
+      const stages=timingsSince(timingFrom),sum=name=>Math.round(stages.filter(s=>s.phase===name).reduce((n,s)=>n+(s.elapsed_ms??0),0)*100)/100;
+      const timing={source_freshness_ms:sum('code_freshness'),target_resolution_ms:sum('target_resolution'),transport:{helper_prepare_ms:sum('native_helper'),identity_wait_ms:sum('native_identity'),response_wait_ms:sum('native_response'),close_wait_ms:sum('native_close')},phase_relation:'Nested phases include their children; do not sum parent and child totals.'};
+      if (dispatchError) { failed(message.id, { tool: name, elapsed_ms,timing, isError: true, error: cap(dispatchError) }, dispatchError); continue; }
       const text = result.content?.find(block => block.type === 'text')?.text;
       let receipt; try { receipt = JSON.parse(text); } catch { receipt = text; }
       const meta = result._meta?.stop_reason;
       const hard = stopsRun(meta) || receipt?.sent === false || receipt?.outcome === 'unknown';
-      calls.push({ call: calls.length + 1, tool: name, elapsed_ms, isError: Boolean(result.isError), ...(typeof text === 'string' ? { receipt: cap(text) } : {}) });
+      calls.push({ call: calls.length + 1, tool: name, elapsed_ms,timing, isError: Boolean(result.isError), ...(typeof text === 'string' ? { receipt: cap(text) } : {}) });
       if (hard) {
         const stop = stopsRun(meta) ? meta : (receipt?.sent === false ? 'not_sent' : 'unknown');
         summary = { ...base(), stop_reason: stop, stopped_step: { tool: name, arguments: toolArgs, ...(receipt && typeof receipt === 'object' ? { receipt } : { receipt_text: text }) }, next: stopAdvice[stop] };

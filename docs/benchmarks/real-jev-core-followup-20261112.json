@@ -1,0 +1,419 @@
+{
+  "date": "2026-11-12",
+  "phase": "phase4b same-operation follow-up",
+  "apps": [
+    {
+      "app": "settings",
+      "records": [
+        {
+          "condition": "local",
+          "trial": 1,
+          "setup_ms": 13425,
+          "phone_total_ms": 5920,
+          "success": true,
+          "choice_ms": 2005,
+          "tap_ms": 378,
+          "final_read_ms": 3537,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.04,
+              "observation_ms": 1992.99,
+              "approval_ms": 0
+            },
+            "action_id": "a1",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 1,
+          "setup_ms": 5434,
+          "phone_total_ms": 8272,
+          "success": true,
+          "choice_ms": 2758,
+          "tap_ms": 1830,
+          "final_read_ms": 3684,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 708.52,
+              "observation_ms": 2027.73,
+              "approval_ms": 0
+            },
+            "confidence": 0.92,
+            "action_id": "a1",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 2,
+          "setup_ms": 5933,
+          "phone_total_ms": 7880,
+          "success": true,
+          "choice_ms": 2621,
+          "tap_ms": 1783,
+          "final_read_ms": 3476,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 1039.25,
+              "observation_ms": 1555.85,
+              "approval_ms": 0
+            },
+            "confidence": 0.93,
+            "action_id": "a1",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        },
+        {
+          "condition": "local",
+          "trial": 2,
+          "setup_ms": 5208,
+          "phone_total_ms": 5174,
+          "success": true,
+          "choice_ms": 1459,
+          "tap_ms": 373,
+          "final_read_ms": 3342,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.26,
+              "observation_ms": 1429.34,
+              "approval_ms": 0
+            },
+            "action_id": "a1",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "local",
+          "trial": 3,
+          "setup_ms": 5158,
+          "phone_total_ms": 5569,
+          "success": true,
+          "choice_ms": 1447,
+          "tap_ms": 389,
+          "final_read_ms": 3733,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.05,
+              "observation_ms": 1412.06,
+              "approval_ms": 0
+            },
+            "action_id": "a1",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 3,
+          "setup_ms": 5524,
+          "phone_total_ms": 24752,
+          "success": true,
+          "choice_ms": 2029,
+          "tap_ms": 13107,
+          "final_read_ms": 9616,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 592.78,
+              "observation_ms": 1408.68,
+              "approval_ms": 0
+            },
+            "confidence": 0.94,
+            "action_id": "a1",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        }
+      ]
+    },
+    {
+      "app": "clock",
+      "records": [
+        {
+          "condition": "local",
+          "trial": 1,
+          "pair": 1,
+          "setup_ms": 5474,
+          "phone_total_ms": 4272,
+          "success": true,
+          "choice_ms": 1737,
+          "tap_ms": 382,
+          "final_read_ms": 2153,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.26,
+              "observation_ms": 1717.04,
+              "approval_ms": 0
+            },
+            "action_id": "a2",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 1,
+          "pair": 1,
+          "setup_ms": 2007,
+          "phone_total_ms": 5549,
+          "success": true,
+          "choice_ms": 2513,
+          "tap_ms": 1838,
+          "final_read_ms": 1198,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 767.72,
+              "observation_ms": 1721.81,
+              "approval_ms": 0
+            },
+            "confidence": 0.93,
+            "action_id": "a2",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 2,
+          "pair": 2,
+          "setup_ms": 1821,
+          "phone_total_ms": 4964,
+          "success": true,
+          "choice_ms": 1993,
+          "tap_ms": 1757,
+          "final_read_ms": 1214,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 417.27,
+              "observation_ms": 1508.71,
+              "approval_ms": 0
+            },
+            "confidence": 0.9,
+            "action_id": "a2",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        },
+        {
+          "condition": "local",
+          "trial": 2,
+          "pair": 2,
+          "setup_ms": 1884,
+          "phone_total_ms": 3161,
+          "success": true,
+          "choice_ms": 1564,
+          "tap_ms": 401,
+          "final_read_ms": 1196,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.11,
+              "observation_ms": 1527.26,
+              "approval_ms": 0
+            },
+            "action_id": "a2",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "local",
+          "trial": 3,
+          "pair": 3,
+          "setup_ms": 1868,
+          "phone_total_ms": 3221,
+          "success": true,
+          "choice_ms": 1568,
+          "tap_ms": 383,
+          "final_read_ms": 1269,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.11,
+              "observation_ms": 1536.7,
+              "approval_ms": 0
+            },
+            "action_id": "a2",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 3,
+          "pair": 3,
+          "setup_ms": 1847,
+          "phone_total_ms": 5015,
+          "success": true,
+          "choice_ms": 1934,
+          "tap_ms": 1819,
+          "final_read_ms": 1262,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 545.86,
+              "observation_ms": 1269.61,
+              "approval_ms": 0
+            },
+            "confidence": 0.93,
+            "action_id": "a2",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        }
+      ]
+    },
+    {
+      "app": "notes",
+      "records": [
+        {
+          "condition": "local",
+          "trial": 1,
+          "setup_ms": 9782,
+          "phone_total_ms": 28207,
+          "success": true,
+          "choice_ms": 9114,
+          "tap_ms": 9397,
+          "final_read_ms": 1822,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.25,
+              "observation_ms": 2050.5,
+              "approval_ms": 0
+            },
+            "action_id": "a2",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 1,
+          "setup_ms": 20408,
+          "phone_total_ms": 15389,
+          "success": true,
+          "choice_ms": 5079,
+          "tap_ms": 2119,
+          "final_read_ms": 1493,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 776.68,
+              "observation_ms": 3731,
+              "approval_ms": 0
+            },
+            "confidence": 0.95,
+            "action_id": "a2",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 2,
+          "setup_ms": 17066,
+          "phone_total_ms": 12101,
+          "success": true,
+          "choice_ms": 2301,
+          "tap_ms": 1798,
+          "final_read_ms": 1143,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 462.18,
+              "observation_ms": 1737.92,
+              "approval_ms": 0
+            },
+            "confidence": 0.96,
+            "action_id": "a2",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        },
+        {
+          "condition": "local",
+          "trial": 2,
+          "setup_ms": 12677,
+          "phone_total_ms": 14110,
+          "success": true,
+          "choice_ms": 1737,
+          "tap_ms": 2476,
+          "final_read_ms": 1600,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.15,
+              "observation_ms": 1693.4,
+              "approval_ms": 0
+            },
+            "action_id": "a2",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "local",
+          "trial": 3,
+          "setup_ms": 12137,
+          "phone_total_ms": 12766,
+          "success": true,
+          "choice_ms": 4159,
+          "tap_ms": 390,
+          "final_read_ms": 1306,
+          "decision": {
+            "source": "local",
+            "model_calls": 0,
+            "decision_timing": {
+              "decision_ms": 0.14,
+              "observation_ms": 4116.8,
+              "approval_ms": 0
+            },
+            "action_id": "a2",
+            "reason": "unique_observed_exact_match"
+          }
+        },
+        {
+          "condition": "jev",
+          "trial": 3,
+          "setup_ms": 11246,
+          "phone_total_ms": 13140,
+          "success": true,
+          "choice_ms": 2794,
+          "tap_ms": 2800,
+          "final_read_ms": 1121,
+          "decision": {
+            "source": "jev",
+            "model_calls": 1,
+            "decision_timing": {
+              "decision_ms": 741.85,
+              "observation_ms": 1998.5,
+              "approval_ms": 0
+            },
+            "confidence": 0.95,
+            "action_id": "a2",
+            "reason": "proposal_requires_fresh_executor_validation"
+          }
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Deterministic local selection is not main-chat reasoning or human performance.",
+    "Native AX and helper wait varied substantially. Notes difference does not establish Jev causality.",
+    "Owner subsequently stopped Jev testing. Ten-app Jev benchmark was not run."
+  ]
+}

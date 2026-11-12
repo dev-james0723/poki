@@ -18,6 +18,14 @@ const sample = () => ({
   actions:[{id:'a1',object_id:'bkk',kind:'tap_text',label:'BKK Suvarnabhumi'},{id:'a2',object_id:'dmk',kind:'tap_text',label:'DMK Don Mueang'}]
 });
 const permission = async p => ({allowed:true,provider:p.provider,snapshot_id:p.snapshotId,expires_at:Date.now()+1000});
+test('operator disable blocks direct Gateway use before reading a key or sending a request',async t=>{
+ const previous=process.env.POKI_JEV_DISABLED;
+ t.after(()=>{if(previous===undefined)delete process.env.POKI_JEV_DISABLED;else process.env.POKI_JEV_DISABLED=previous;});
+ process.env.POKI_JEV_DISABLED='1';let keys=0,requests=0;
+ const request=makeGatewayJevRequest({getKey:async()=>{keys++;return 'unused'},fetchImpl:async()=>{requests++;throw Error('must not run')}});
+ await assert.rejects(request(typeSafePayload()),/Jev disabled by operator/);
+ assert.equal(keys,0);assert.equal(requests,0);
+});
 const typeSafePayload = () => ({url:'https://api.typesafe.ai/v1/systemone',body:{model:'jev-latest',state:{goal:'choose airport',app:'Trip.com',observation_id:'synthetic-obs',actions:[]},
  questions:{next_action:{type:'choice',instructions:'Choose from supplied buttons',criteria:{a1:'BKK',a2:'DMK',REOBSERVE:'unclear'}}}}});
 

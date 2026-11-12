@@ -172,6 +172,7 @@ export class Devices {
     }));
   }
   async target(boot = true) {
+    return phase('target_resolution',async()=>{
     checkWork();
     if (this.resolved) { this.access(this.resolved); return this.resolved; }
     // An exact saved RemotePairing identity is already resolved. Unrelated USB
@@ -205,6 +206,7 @@ export class Devices {
       }
     }
     return target;
+    });
   }
   // The id a device argument names, matched as target() matches it but without asking a phone for its name.
   async remoteById(query) {
@@ -567,7 +569,7 @@ export class Devices {
     this.requested = args.device ?? previous;
     try {
       checkWork();
-      if (name !== 'poki_mcp_status' && name !== 'stop_recording') await requireCurrentCode();
+      if (name !== 'poki_mcp_status' && name !== 'stop_recording') await phase('code_freshness',requireCurrentCode);
       if (approvedTools.has(name)) await this.target();
       // Says on the result who let it run, so an agent can tell a gated call from an ordinary one.
       const approval = !approvedTools.has(name) ? undefined : process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? { mode: 'operator-preapproved', approved_by: 'operator' } : { mode: 'ask-human', approved_by: 'human' };
@@ -584,7 +586,7 @@ export class Devices {
       }
       switch (name) {
         case 'acquire_device': return text(await this.coordinator.acquire(this, await this.target(false), args.ttl_seconds ?? 120));
-        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), registered_device_tools: 53, observation_tools: 3, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
+        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), jev_policy: process.env.POKI_JEV_DISABLED === '1' ? 'disabled' : 'opt-in', registered_device_tools: 53, observation_tools: 3, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
         case 'list_devices': {
           const devices = await this.describeDevices(args.include_all_simulators);
           return text({ devices, ...(devices.some(d => d.kind === 'physical') ? {} : { notice: noUsbDevice }), ...(args.include_all_simulators ? { simulator_models: await simulatorModels() } : {}) });
