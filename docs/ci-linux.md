@@ -1,4 +1,4 @@
-# Linux CI on an independent build provider
+# Linux CI on Cloudflare Pages
 
 This entrypoint runs real commands and publishes a static report of their results.
 It is a Linux subset of Poki verification. It does not replace Windows execution,
@@ -13,7 +13,8 @@ No account or repository numeric IDs belong in these files.
 - Root directory: repository root.
 - Build command: `bash bin/ci/bootstrap-ubuntu.sh --repository dev-james0723/poki`.
 - Build output directory: `.ci-output`.
-- Node: configure Node 24 or newer in the provider's build image.
+- Node: `NODE_VERSION=24.22.1` in both preview and production build settings.
+- Set `SKIP_DEPENDENCY_INSTALL=1`; the entrypoint performs the locked install.
 - Rust: this entrypoint uses `1.99.1`, matching the verified local toolchain.
 - Optional first-build pin: `POKI_CI_EXPECTED_SHA=<full expected commit>`.
 - Optional dependency installation: `POKI_CI_INSTALL_PACKAGES=1`. Root or
@@ -29,13 +30,33 @@ If `POKI_CI_EXPECTED_SHA` is present, that must match too. Remove this temporary
 pin after the first verified deployment so later commits do not fail against an
 old expected SHA. Outside Pages, pass `--expected-commit <full SHA>` explicitly.
 
-Do not remove the GitHub PR trigger or required checks merely because the project
-was created. First observe an actual Pages build, inspect its source SHA and build
-result through the authenticated API, fetch that deployment's `report.json`, and
-confirm the matching commit, all required checks, pipeline hash and exclusions.
-Use the deployment URL for that build: a production alias can still serve an older
-passing commit after a later build fails. Configure equivalent PR status reporting
-and required contexts before retiring the previous checks.
+The `poki-ci-james0723` Pages project is connected to `dev-james0723/poki`.
+Pushes to preview branches run this command automatically; pushes to `main` are
+configured for production builds after the entrypoint reaches that branch through
+a reviewed merge. Pages publishes its own `Cloudflare Pages` check on the exact
+GitHub commit. GitHub hosts the source and receives the check; GitHub Actions does
+not execute this Linux pipeline. PR deployment comments are disabled.
+
+The previous `pr-checks.yml` is now `workflow_dispatch` only, named
+`Manual compatibility checks`. Its Windows GSA job remains available for an
+explicit compatibility run. It has not been replaced by Linux tests, and a green
+Cloudflare check does not establish Windows coverage. The release/promotion
+workflows and their approval requirements remain separate.
+
+The switch follows an authenticated successful Pages build of commit
+`3825fa24389420eac88e1867a93ca3fa7c34f499`: all 14 checks passed with 86 executed
+tests, no exposed ignored/skipped/filtered tests, a clean source checkout, matching
+pipeline/source hashes, and a native Cloudflare check on that same commit.
+
+For each new commit, inspect the authenticated Pages build result and source SHA,
+then fetch that deployment's `report.json` and verify all required checks, pipeline
+hash and exclusions. Use the unique deployment URL: a branch or production alias
+can still serve an older passing commit after a later build fails. Remove the
+first-build SHA pin before automatic builds; do not weaken source verification.
+For protected branches, migrate the former Linux required contexts to the native
+Cloudflare context only after verifying it reports on the intended commit. Preserve
+independent Windows and promotion requirements; do not describe the Linux status
+as their replacement.
 
 ## Bootstrap requirements
 
