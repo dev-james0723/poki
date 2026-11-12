@@ -24,6 +24,15 @@ function fixture(data=snapshot(),failed=false) {
   return {ctx,reads:()=>reads};
 }
 const commands=[{tool:'tap',arguments:{x:10,y:20,verify:false}},{tool:'snapshot_ui',arguments:{}}];
+test('batch timing distinguishes queue admission from execution without exposing screen data',async()=>{
+  const f=fixture();
+  const out=await work.run({signal:new AbortController().signal,timings:[{phase:'queue',elapsed_ms:12500}]},()=>runBatch(f.ctx,{commands:[{tool:'wait',arguments:{seconds:0}}]}));
+  const timing=JSON.parse(out.content.at(-1).text).timing;
+  assert.equal(timing.queue_ms,12500);
+  assert.ok(timing.batch_ms>=0&&timing.batch_ms<1000);
+  assert.equal(timing.readback_ms,0);
+  assert.deepEqual(Object.keys(timing).sort(),['batch_ms','queue_ms','readback_ms','steps_ms']);
+});
 test('a complete trailing live snapshot is the batch readback, without a second screen read',async()=>{
   const f=fixture();
   const result=await inside(()=>runBatch(f.ctx,{commands}));

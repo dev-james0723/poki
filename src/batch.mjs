@@ -1,4 +1,4 @@
-import { checkWork, phase, stopped, stoppingReason } from './work.mjs';
+import { checkWork, phase, stopped, stoppingReason, timingsSince } from './work.mjs';
 import { managementTools } from './coordination.mjs';
 import { definitions } from './tools.mjs';
 import { closestTo, describeScreen } from './interaction.mjs';
@@ -66,6 +66,7 @@ async function finalSnapshot(ctx, command, result) {
 // screen before it when a later step depends on that (see Devices.checksStep); the screen itself is
 // read back once, after the last step.
 export async function runBatch(ctx, args) {
+  const batchStarted = performance.now();
   const commands = args.commands.map(command => {
     const tool = stepTool(command.tool);
     const supportsVerification = definitions.find(([name]) => name === tool)?.[2].shape?.verify;
@@ -79,7 +80,7 @@ export async function runBatch(ctx, args) {
     return { isError: true, content: [json({ step: invalid + 1, tool: commands[invalid].tool, isError: true, elapsed_ms: 0 }), { type: 'text', text: error }, receipt({ completed_steps: 0, stop_reason: 'error', failed_step: { step: invalid + 1, ...commands[invalid], error }, remaining_steps: commands, next: 'Nothing ran. Fix the failed step and send the whole batch again.' })] };
   }
   const blocks = [];
-  let stopReason, failed = false, ran = 0, failure, unchanged, lastResult;
+  let stopReason, failed = false, ran = 0, failure, unchanged, lastResult, stepsMs = 0, readbackMs = 0;
   ctx.inBatch = true;
   try {
     for (const [index, command] of commands.entries()) {
@@ -97,7 +98,9 @@ export async function runBatch(ctx, args) {
       }
       ran++;
       lastResult = result;
-      blocks.push(json({ step: ran, tool: command.tool, isError: Boolean(result.isError), elapsed_ms: Math.round(performance.now() - started) }), ...result.content);
+      const elapsed = Math.round(performance.now() - started);
+      stepsMs += elapsed;
+      blocks.push(json({ step: ran, tool: command.tool, isError: Boolean(result.isError), elapsed_ms: elapsed }), ...result.content);
       // A fill that typed the wrong text is an ordinary failure: stop_on_error decides, not this block.
       // A touch with no observed change may still have worked. The batch pauses only to hold back the steps
       // written for the screen it should produce, so with none left, or when the caller allows it, it goes on.
@@ -119,11 +122,13 @@ export async function runBatch(ctx, args) {
   if (last && last.tool !== 'shut_down_simulator') {
     // dispatch restores both when this batch ends.
     if (last.arguments?.device) { ctx.requested = last.arguments.device; ctx.resolved = undefined; }
+    const readStarted = performance.now();
     const explicit = await finalSnapshot(ctx, commands[ran - 1], lastResult);
     const { screen, stop_reason } = explicit ? {screen:explicit}
       : await phase('batch_readback', () => ctx.readback(undefined, { once: unverified }));
     stopReason ??= stop_reason;
     summary.screen = screen;
+    readbackMs = Math.round(performance.now() - readStarted);
   }
   if (stopReason) {
     if (failure) {
@@ -141,5 +146,7 @@ export async function runBatch(ctx, args) {
     else if (unchanged) Object.assign(summary, { unchanged_step: unchanged, remaining_steps: commands.slice(ran), next: advice(stopReason, ran) });
     else Object.assign(summary, { remaining_steps: commands.slice(ran), next: advice(stopReason, ran + 1) });
   }
-  return { ...(failed || stopReason ? { isError: true } : {}), content: [...blocks, receipt({ completed_steps: ran, stop_reason: stopReason ?? null, ...summary })] };
+  const timing = {queue_ms:timingsSince(0).find(entry => entry.phase === 'queue')?.elapsed_ms ?? 0,
+    batch_ms:Math.round(performance.now() - batchStarted),steps_ms:stepsMs,readback_ms:readbackMs};
+  return { ...(failed || stopReason ? { isError: true } : {}), content: [...blocks, receipt({ completed_steps: ran, stop_reason: stopReason ?? null, ...summary, timing })] };
 }
