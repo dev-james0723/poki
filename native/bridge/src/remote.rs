@@ -390,7 +390,12 @@ async fn reply(session: &mut Session, line: &str) -> Value {
             Err(e) => Err(e.into()),
         }
     };
-    response.unwrap_or_else(|e| json!({"isError":true,"transport_error":true,"error":e.to_string(),"screen_change_verified":false}))
+    let output = response.unwrap_or_else(|e| json!({"isError":true,"transport_error":true,"error":e.to_string(),"screen_change_verified":false}));
+    let device = match &session.transport {
+        Transport::Local(id) => id,
+        Transport::Remote(config) => &config.id,
+    };
+    super::execution_receipt::with_runtime(output, device)
 }
 
 pub async fn serve(path: &str) -> Result<Value> {

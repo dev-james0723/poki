@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "lanes": [
+    {"device":{"id":"<FIRST_EXACT_PHYSICAL_DEVICE_ID>","name":"<FIRST_EXACT_DEVICE_NAME>","kind":"physical","connection":"RemotePairing"}},
+    {"device":{"id":"<SECOND_EXACT_PHYSICAL_DEVICE_ID>","name":"<SECOND_EXACT_DEVICE_NAME>","kind":"physical","connection":"RemotePairing"}}
+  ]
+}
