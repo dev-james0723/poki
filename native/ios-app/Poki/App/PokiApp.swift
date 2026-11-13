@@ -94,6 +94,8 @@ struct RootView: View {
             ChatView(openDetails: { tab = .agents }, openVoice: openLiveVoice,
                      openSetup: openSetup, openModel: { openAgents(AgentsRoute.accounts) },
                      back: split ? nil : { home = NavigationPath() })
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("poki.route.chat")
         case .session(let id):
             SessionView(id: id, back: { home = NavigationPath() })
         case .setup:
@@ -203,8 +205,9 @@ struct RootView: View {
                 tab = .setup
                 setup = NavigationPath([step])
             } else if url.host() == "setup", !url.absoluteString.contains("relay=") {
-                // The Live Activity during setup: the Setup tab.
+                // A fixed setup link always lands at the actual checklist root.
                 tab = .setup
+                setup = NavigationPath()
             } else if url.host() == "log" {
                 // The Live Activity's problem: what went wrong is in the Activity Log.
                 openAgents(.activityLog)
