@@ -1,15 +1,13 @@
-# Quick checks on every PR, on Linux and Windows so they never take one of the 5 macOS runners the
-# builds share: Poki Setup's core tests (release picking, pairing, signing), the Rust lockfiles
-# (a stale Cargo.lock once broke a release build), and the workflows themselves. The macOS work
-# (the app, the Gym) runs on main and on promotions only.
-name: PR checks
+# Cloudflare Pages runs the automatic Linux checks from bin/ci/bootstrap-ubuntu.sh.
+# Keep these jobs for an explicitly requested compatibility run, including Windows.
+# A passing Cloudflare Linux build does not prove Windows or macOS execution.
+name: Manual compatibility checks
 
 on:
-  pull_request:
-    branches: [main, 'release/**']
+  workflow_dispatch:
 
 concurrency:
-  group: pr-checks-${{ github.event.pull_request.number }}
+  group: manual-compatibility-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

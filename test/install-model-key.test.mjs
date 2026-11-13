@@ -32,7 +32,11 @@ do {
   return async (privateKey, bundleId, sealed) => {
     const file = join(dir, `sealed-${Math.random().toString(36).slice(2)}.json`);
     await writeFile(file, sealed);
-    return (await exec(join(dir, 'open'), [privateKey.toString('base64'), bundleId, file])).stdout.trim();
+    // CryptoKit's raw P-256 representation is a fixed-width, big-endian scalar.
+    assert.ok(privateKey.length > 0 && privateKey.length <= 32);
+    const rawKey = Buffer.alloc(32);
+    privateKey.copy(rawKey, rawKey.length - privateKey.length);
+    return (await exec(join(dir, 'open'), [rawKey.toString('base64'), bundleId, file])).stdout.trim();
   };
 }
 
@@ -41,7 +45,9 @@ const hasSwift = await exec('swiftc', ['--version']).then(() => true, () => fals
 test('a key the installer seals opens in Poki\'s Swift code, only for that phone key, that app and that provider', { skip: !hasSwift && 'no swiftc on this Mac' }, async t => {
   const open = await swiftOpener(t);
   const phone = createECDH('prime256v1');
-  phone.generateKeys();
+  // Node omits leading zero bytes; exercise the scalar format that previously failed at random.
+  phone.setPrivateKey(Buffer.from('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f', 'hex'));
+  assert.equal(phone.getPrivateKey().length, 31);
   const hello = { model_key: { kem: KEM, public_key: phone.getPublicKey().toString('base64url'), key_id: keyId(phone.getPublicKey()) } };
   const bundleId = 'nz.zheha.poki.TEAMID1234';
   const secret = ['sk', 'proj', 'FAKEinteropKEY0123456789'].join('-');

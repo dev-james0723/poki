@@ -15,12 +15,14 @@ enum AskPoki {
     /// The owner's chat (the Debug probe's `chat` mode sends to it).
     private(set) static weak var chat: ChatModel?
     private static var running: [String: ChatModel] = [:]
+    static var hasActiveTask: Bool { !running.isEmpty }
     /// Hand-offs by the requester's session: the task under way, then its answer until it is read.
     private static var jobs: [String: Task<(text: String, success: Bool?), Never>] = [:]
 
     static func install(app: AppModel, chat: ChatModel) {
         self.app = app
         self.chat = chat
+        PokiTaskBridge.install(app: app, chat: chat)
         refresh()
         NotificationCenter.default.addObserver(forName: ModelKeys.changed, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { refresh() }
@@ -54,7 +56,7 @@ enum AskPoki {
             return PokiCore.ToolAnswer(text: "error: task is empty; nothing was done", jpeg: nil, isError: true)
         }
         guard let app else { return PokiCore.ToolAnswer(text: "error: Poki is not ready", jpeg: nil, isError: true) }
-        if chat?.running == true || ChatModel.delegatedBusy != nil || !running.isEmpty {
+        if chat?.running == true || ChatModel.delegatedBusy != nil || !running.isEmpty || PokiTaskBridge.isBusy {
             return PokiCore.ToolAnswer(text: "busy: Poki's agent is already working on a task on this iPhone; nothing was done. Try again in a minute, or use look and do.", jpeg: nil, isError: true)
         }
         let store = SessionStore.shared

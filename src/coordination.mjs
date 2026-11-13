@@ -69,10 +69,11 @@ export class Coordination {
     const op = { owner: ctx, controller, requestId, devices: new Set(), timings: [] };
     this.operations.add(op);
     const queued = performance.now();
-    // Count snapshot queue time against its deadline without releasing the
-    // queue until started work actually stops.
-    const requestedMs = name === 'snapshot_ui' ? (args.timeout_ms ?? 6000) : undefined;
-    const boundedMs = Number.isInteger(requestedMs) && requestedMs >= 100 && requestedMs <= 20000 ? requestedMs : undefined;
+    // Bounded observations include queue time. A deadline never releases the
+    // device queue until started work has actually stopped.
+    const readBudget = {snapshot_ui:[6000,20000],query_ui:[6000,30000],wait_for_ui:[10000,30000],safari_wait_for:[15000,30000]}[name];
+    const requestedMs = readBudget ? (args.timeout_ms ?? readBudget[0]) : undefined;
+    const boundedMs = Number.isInteger(requestedMs) && requestedMs >= 100 && requestedMs <= readBudget?.[1] ? requestedMs : undefined;
     const expires = boundedMs === undefined ? undefined : queued + boundedMs;
     const timeoutController = new AbortController();
     const combined = AbortSignal.any([controller.signal, timeoutController.signal, ...(requestSignal ? [requestSignal] : [])]);

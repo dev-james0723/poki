@@ -225,6 +225,42 @@ impl Archive {
             .map(|a| a.iter().map(|v| self.resolve(v)).collect())
             .unwrap_or_default()
     }
+    // Child coverage must distinguish a valid empty list from an unreadable
+    // list or reference. Other best-effort attribute decoding stays unchanged.
+    fn resolve_child_value<'a>(&'a self, mut value: &'a Value) -> Result<&'a Value> {
+        let objects = self.value.as_dictionary().and_then(|d| d.get("$objects"))
+            .and_then(Value::as_array).ok_or("AX archive has no object table")?;
+        for _ in 0..32 {
+            let Some(uid) = value.as_uid() else { return Ok(value); };
+            let index = usize::try_from(uid.get()).map_err(|_| "AX child UID is out of range")?;
+            value = objects.get(index).ok_or("AX child UID is unresolved")?;
+        }
+        if value.as_uid().is_some() {
+            return Err("AX child UID is cyclic or too deep".into());
+        }
+        Ok(value)
+    }
+    fn child_ids(&self, value: &Value) -> Result<Vec<u64>> {
+        let value = self.resolve_child_value(value)?;
+        let values = if let Some(values) = value.as_array() {
+            values
+        } else {
+            let raw = value.as_dictionary().and_then(|d| d.get("NS.objects"))
+                .ok_or("AX child list is not an array")?;
+            self.resolve_child_value(raw)?.as_array().ok_or("AX child list is not an array")?
+        };
+        if values.len() > MAX_COMPLETE_EDGES {
+            return Err("AX child list exceeds the coverage budget".into());
+        }
+        values.iter().map(|value| {
+            let child = self.resolve_child_value(value)?;
+            if let Some(id) = child.as_unsigned_integer() { return Ok(id); }
+            let raw = self.field(child, "objectID").ok_or("AX child reference has no integral object ID")?;
+            self.resolve_child_value(raw)?.as_unsigned_integer()
+                .ok_or_else(|| "AX child object ID is not an unsigned integer".into())
+        }).collect()
+    }
+
     fn string(&self, value: &Value) -> Option<String> {
         let value = self.resolve(value);
         if let Some(v) = value.as_string() {
@@ -277,11 +313,33 @@ impl Archive {
     }
 }
 
+// Completeness describes the graph in this one non-atomic native dump.
+// A missing child-list attribute is unknown coverage, not proof of a leaf.
+const MAX_COMPLETE_NODES: usize = 20_000;
+const MAX_COMPLETE_EDGES: usize = 100_000;
+const MAX_COMPLETE_DEPTH: usize = 256;
+
+struct GraphCompleteness {
+    graph_closed: bool,
+    child_lists_explicit: bool,
+    nodes: usize,
+    reason: &'static str,
+}
+impl GraphCompleteness {
+    fn complete(&self) -> bool { self.graph_closed && self.child_lists_explicit }
+    fn invalid(reason: &'static str, nodes: usize) -> Self {
+        Self { graph_closed: false, child_lists_explicit: false, nodes, reason }
+    }
+}
+
 #[derive(Default)]
 struct Node {
     fields: Map<String, Json>,
     children: Vec<u64>,
     visible_children: Vec<u64>,
+    children_known: bool,
+    visible_children_known: bool,
+    child_decode_failed: bool,
 }
 #[derive(Default)]
 struct Tree {
@@ -362,19 +420,18 @@ impl Tree {
                                 }
                             }
                             8 | 9 => {
-                                let ids = a
-                                    .array(value)
-                                    .into_iter()
-                                    .filter_map(|v| {
-                                        a.integer(v).or_else(|| {
-                                            a.field(v, "objectID").and_then(|v| a.integer(v))
-                                        })
-                                    })
-                                    .collect();
+                                let decoded = a.child_ids(value);
+                                let known = decoded.is_ok();
+                                if !known { node.child_decode_failed = true; }
+                                // Never retain a previous known list or silently discard a bad
+                                // reference while declaring the replacement list complete.
+                                let ids = decoded.unwrap_or_default();
                                 if attribute == 8 {
                                     node.children = ids;
+                                    node.children_known = known;
                                 } else {
                                     node.visible_children = ids;
+                                    node.visible_children_known = known;
                                 }
                             }
                             1 | 21 => {
@@ -444,6 +501,79 @@ impl Tree {
         }
         Ok(())
     }
+    fn chosen_children<'a>(&self, node: &'a Node) -> &'a [u64] {
+        if (self.include_offscreen && !node.children.is_empty()) || node.visible_children.is_empty() {
+            &node.children
+        } else {
+            &node.visible_children
+        }
+    }
+    fn chosen_children_known(&self, node: &Node) -> bool {
+        if node.child_decode_failed { return false; }
+        if self.include_offscreen {
+            // A visible-only fallback cannot establish offscreen coverage.
+            node.children_known && (!node.children.is_empty() || node.visible_children.is_empty())
+        } else if !node.visible_children.is_empty() {
+            node.visible_children_known
+        } else if !node.children.is_empty() {
+            node.children_known
+        } else {
+            node.children_known || node.visible_children_known
+        }
+    }
+    fn completeness(&self) -> GraphCompleteness {
+        if self.roots.is_empty() {
+            return GraphCompleteness::invalid("missing_root", 0);
+        }
+        if self.roots.len() > MAX_COMPLETE_NODES {
+            return GraphCompleteness::invalid("node_limit", 0);
+        }
+        let mut active = HashSet::new();
+        let mut finished = HashSet::new();
+        let mut nodes = 0usize;
+        let mut edges = 0usize;
+        let mut explicit = true;
+        let mut invalid_children = false;
+        let mut stack: Vec<(u64, usize, bool)> = self.roots.iter()
+            .rev().map(|(id, _)| (*id, 0, false)).collect();
+        while let Some((id, depth, exiting)) = stack.pop() {
+            if exiting {
+                active.remove(&id);
+                finished.insert(id);
+                continue;
+            }
+            if active.contains(&id) {
+                return GraphCompleteness::invalid("cycle", nodes);
+            }
+            if finished.contains(&id) { continue; }
+            if depth > MAX_COMPLETE_DEPTH {
+                return GraphCompleteness::invalid("depth_limit", nodes);
+            }
+            let Some(node) = self.nodes.get(&id) else {
+                return GraphCompleteness::invalid("missing_referenced_node", nodes);
+            };
+            nodes += 1;
+            if nodes > MAX_COMPLETE_NODES {
+                return GraphCompleteness::invalid("node_limit", nodes);
+            }
+            let children = self.chosen_children(node);
+            edges = edges.saturating_add(children.len());
+            if edges > MAX_COMPLETE_EDGES {
+                return GraphCompleteness::invalid("edge_limit", nodes);
+            }
+            explicit &= self.chosen_children_known(node);
+            invalid_children |= node.child_decode_failed;
+            active.insert(id);
+            stack.push((id, depth, true));
+            stack.extend(children.iter().rev().map(|child| (*child, depth + 1, false)));
+        }
+        GraphCompleteness { graph_closed: true, child_lists_explicit: explicit, nodes,
+            reason: if invalid_children { "child_list_decode_failed" }
+                else if explicit { "explicit_child_lists" } else { "child_list_coverage_unknown" } }
+    }
+    #[cfg(test)]
+    fn complete(&self) -> bool { self.completeness().complete() }
+
     fn ready(&self) -> bool {
         !self.roots.is_empty()
             && self.roots.iter().any(|(id, _)| self.nodes.contains_key(id))
@@ -490,13 +620,7 @@ impl Tree {
             fields.insert("object_id".into(), format!("o{id}").into());
             fields.insert("parent".into(), json!(parent));
             fields.insert("depth".into(), depth.into());
-            let children = if (self.include_offscreen && !node.children.is_empty())
-                || node.visible_children.is_empty()
-            {
-                &node.children
-            } else {
-                &node.visible_children
-            };
+            let children = self.chosen_children(node);
             for child in children.iter().rev() {
                 stack.push((*child, Some(index), depth + 1));
             }
@@ -511,7 +635,10 @@ impl Tree {
         } else {
             None
         };
-        json!({"source":"accessibility","elements":elements,"applications":applications,"foreground_app":foreground,"orientation":self.orientation})
+        let coverage = self.completeness();
+        json!({"source":"accessibility","elements":elements,"applications":applications,"foreground_app":foreground,"orientation":self.orientation,
+            "complete":coverage.complete(),"completeness":{"scope":"known_reachable_native_graph","graph_closed":coverage.graph_closed,
+                "child_lists_explicit":coverage.child_lists_explicit,"nodes":coverage.nodes,"reason":coverage.reason,"atomic":false}})
     }
     // Prefer explicit roles before applying the fallback role table.
     fn role(&self, id: u64, node: &Node) -> String {
@@ -696,4 +823,188 @@ pub(crate) async fn read_streamed(adapter:&mut AdapterHandle,rsd:&RsdHandshake,o
         tree["source_age_ms"]=json!(0);
         Ok(tree)
     }).await
+}
+
+
+#[cfg(test)]
+mod completeness_tests {
+    use super::*;
+
+    fn leaf() -> Node {
+        Node { children_known: true, visible_children_known: true, ..Node::default() }
+    }
+    fn fixture() -> Tree {
+        let mut root = leaf();
+        root.children = vec![2];
+        root.visible_children = vec![2];
+        Tree {
+            nodes: BTreeMap::from([(1, root), (2, leaf())]),
+            roots: vec![(1, Some(7))],
+            ..Tree::default()
+        }
+    }
+
+    #[test]
+    fn complete_requires_known_reachable_nodes_and_child_lists() {
+        let tree = fixture();
+        assert!(tree.complete());
+        assert_eq!(tree.json()["complete"], true);
+        let mut missing = fixture();
+        missing.nodes.remove(&2);
+        assert!(!missing.complete());
+        let mut unknown = fixture();
+        unknown.nodes.insert(2, Node::default());
+        assert!(unknown.completeness().graph_closed);
+        assert!(!unknown.complete());
+        assert!(!Tree::default().complete());
+    }
+
+    #[test]
+    fn visible_scope_checks_the_children_used_by_serialization() {
+        let mut tree = fixture();
+        tree.nodes.get_mut(&1).unwrap().children.push(3);
+        // Invisible nodes are not part of the requested visible graph.
+        assert!(tree.complete());
+        tree.include_offscreen = true;
+        assert!(!tree.complete());
+        tree.nodes.insert(3, leaf());
+        assert!(tree.complete());
+    }
+
+    #[test]
+    fn empty_visible_list_never_hides_unresolved_fallback_children() {
+        let mut tree = fixture();
+        let root = tree.nodes.get_mut(&1).unwrap();
+        root.visible_children.clear();
+        root.children.push(3);
+        assert!(!tree.complete());
+        tree.nodes.insert(3, leaf());
+        assert!(tree.complete());
+    }
+
+    #[test]
+    fn cycle_is_incomplete_but_shared_finished_nodes_are_allowed() {
+        let mut tree = fixture();
+        tree.nodes.get_mut(&2).unwrap().children = vec![1];
+        tree.nodes.get_mut(&2).unwrap().visible_children = vec![1];
+        assert!(!tree.complete());
+        let mut shared = fixture();
+        shared.nodes.get_mut(&1).unwrap().children = vec![2, 2];
+        shared.nodes.get_mut(&1).unwrap().visible_children = vec![2, 2];
+        assert!(shared.complete());
+    }
+
+    #[test]
+    fn malformed_or_unbounded_graph_cannot_claim_completeness() {
+        let mut tree = fixture();
+        tree.roots.push((99, None));
+        assert!(!tree.complete());
+        let mut deep = Tree { roots: vec![(0, None)], ..Tree::default() };
+        for id in 0..=MAX_COMPLETE_DEPTH + 1 {
+            let mut node = leaf();
+            if id <= MAX_COMPLETE_DEPTH {
+                node.children = vec![(id + 1) as u64];
+                node.visible_children = node.children.clone();
+            }
+            deep.nodes.insert(id as u64, node);
+        }
+        assert!(!deep.complete());
+        let mut wide = fixture();
+        wide.nodes.get_mut(&1).unwrap().children = vec![2; MAX_COMPLETE_EDGES + 1];
+        wide.nodes.get_mut(&1).unwrap().visible_children = vec![2; MAX_COMPLETE_EDGES + 1];
+        assert!(!wide.complete());
+    }
+}
+
+
+#[cfg(test)]
+mod child_decode_tests {
+    use super::*;
+
+    fn dictionary<const N: usize>(entries: [(&str, Value); N]) -> Value {
+        Value::Dictionary(entries.into_iter().map(|(key, value)| (key.to_owned(), value)).collect())
+    }
+    fn attributes(children: Value, visible: Value) -> Value {
+        dictionary([
+            ("NS.keys", Value::Array(vec![8u64.into(), 9u64.into()])),
+            ("NS.objects", Value::Array(vec![children, visible])),
+        ])
+    }
+    fn tree_archive(children: Value, visible: Value) -> Archive {
+        let dump = Value::Array(vec![
+            dictionary([
+                ("associatedRequestType", 4u64.into()),
+                ("resultData", dictionary([("objectID", 1u64.into()), ("pid", 7u64.into())])),
+            ]),
+            dictionary([
+                ("associatedRequestType", 5u64.into()),
+                ("associatedTranslationObject", dictionary([("objectID", 1u64.into())])),
+                ("resultData", attributes(children, visible)),
+            ]),
+            dictionary([
+                ("associatedRequestType", 5u64.into()),
+                ("associatedTranslationObject", dictionary([("objectID", 2u64.into())])),
+                ("resultData", attributes(Value::Array(vec![]), Value::Array(vec![]))),
+            ]),
+        ]);
+        let root = dictionary([
+            ("associatedRequestType", 11u64.into()),
+            ("resultData", dictionary([("treeDump", dump)])),
+        ]);
+        let archive = dictionary([
+            ("$objects", Value::Array(vec!["$null".into(), root])),
+            ("$top", dictionary([("root", Value::Uid(plist::Uid::new(1)))])),
+        ]);
+        let mut bytes = Vec::new();
+        archive.to_writer_binary(&mut bytes).unwrap();
+        Archive::parse(&bytes).unwrap()
+    }
+    fn decoded(children: Value, visible: Value) -> Tree {
+        let mut tree = Tree::default();
+        tree.update(&tree_archive(children, visible)).unwrap();
+        assert!(tree.ready());
+        tree
+    }
+
+    #[test]
+    fn archived_valid_empty_lists_are_known_and_integral_child_ids_resolve() {
+        let empty = decoded(Value::Array(vec![]), Value::Array(vec![]));
+        assert!(empty.complete());
+        let direct = decoded(Value::Array(vec![2u64.into()]), Value::Array(vec![2u64.into()]));
+        assert!(direct.complete());
+        let wrapped = dictionary([("NS.objects", Value::Array(vec![
+            dictionary([("objectID", 2u64.into())]),
+        ]))]);
+        assert!(decoded(wrapped.clone(), wrapped).complete());
+    }
+
+    #[test]
+    fn archived_malformed_child_list_shape_does_not_mean_empty_coverage() {
+        for malformed in [
+            Value::String("not an array".into()),
+            dictionary([("NS.objects", Value::String("not an array".into()))]),
+        ] {
+            let tree = decoded(malformed, Value::Array(vec![]));
+            assert!(!tree.complete(), "malformed child list was promoted to complete coverage");
+        }
+    }
+
+    #[test]
+    fn archived_mixed_valid_and_undecodable_children_fail_coverage() {
+        let list = Value::Array(vec![2u64.into(), Value::String("bad child".into())]);
+        let tree = decoded(list.clone(), list);
+        assert!(!tree.complete(), "invalid child was silently discarded");
+    }
+
+    #[test]
+    fn archived_child_ids_require_actual_nonnegative_integers_and_resolved_uids() {
+        for invalid in [
+            Value::Real(2.0), Value::Real(2.5), Value::Boolean(true),
+            Value::Integer((-1i64).into()), Value::Uid(plist::Uid::new(999)),
+            dictionary([("objectID", Value::Real(2.0))]),
+        ] {
+            let list = Value::Array(vec![2u64.into(), invalid]);
+            assert!(!decoded(list.clone(), list).complete(), "malformed ID was coerced or dropped");
+        }
+    }
 }

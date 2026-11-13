@@ -140,7 +140,10 @@ struct AgentsView: View {
                 switch route {
                 case .accounts: ModelSettingsView()
                 case .voice: VoiceView(embedded: true)
-                case .activityLog: ActionLogView(openSession: openSession)
+                case .activityLog:
+                    ActionLogView(openSession: openSession)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("poki.route.activity")
                 }
             }
             .navigationDestination(for: SettingsRoute.self) { route in
@@ -163,6 +166,8 @@ struct SetupTab: View {
     var body: some View {
         NavigationStack(path: $path) {
             SetupChecklist()
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("poki.route.setup")
                 .navigationTitle("Setup")
                 .navigationBarTitleDisplayMode(.large)
                 .toolbar {

@@ -1,4 +1,9 @@
 import {snapshotUI,viewportFromAX,axSignature} from './ax-snapshot.mjs';
+import {queryUI,waitForUI} from './ui-query.mjs';
+import {safariTools,safariTool,closeSafari} from './safari-dom.mjs';
+import {appActionTools} from './app-actions-schema.mjs';
+import {appActionTool} from './app-actions.mjs';
+import {urlApprovalDetail} from './approval-details.mjs';
 import { remoteDevices, nativeRequest } from './remote.mjs';
 import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason, work, timingCount, timingsSince } from './work.mjs';
 import { Coordination, managementTools } from './coordination.mjs';
@@ -24,8 +29,9 @@ import { leavesUnnamedBand, textOutside } from './ocr-supplement.mjs';
 import { version, buildInfo, requireCurrentCode } from './build-info.mjs';
 
 export const text = value => ({ content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] });
+const capabilityResult = value => ({...text(value),...(value?.isError ? {isError:true,_meta:{stop_reason:value.stop_reason ?? (value.outcome==='unknown'?'unknown':'error')}} : {})});
 const usedSimulators = new Set();
-const approvedTools = new Set(['install_app', 'uninstall_app', 'build_and_run', 'open_url', 'download_app_container', 'get_clipboard', 'set_clipboard']);
+const approvedTools = new Set(['install_app', 'uninstall_app', 'build_and_run', 'open_url', 'safari_open', 'download_app_container', 'get_clipboard', 'set_clipboard']);
 const platformTools = new Set(['start_simulator', 'shut_down_simulator', 'start_recording', 'stop_recording', 'set_appearance', 'set_accessibility', 'list_apps', 'launch_app', 'terminate_app', 'install_app', 'uninstall_app', 'open_settings', 'open_url', 'build_and_run', 'set_location', 'clear_location', 'get_clipboard', 'set_clipboard', 'list_crashes', 'get_crash', 'download_app_container']);
 
 // A simulator reads its screen in about 0.2 s, so five seconds covers the two reads that call a screen
@@ -94,7 +100,9 @@ export class Devices {
     return { stdout: result.stdout.trimEnd(), stderr: result.stderr.trimEnd() };
   }
   async cleanup(onlyDevices) {
+    const safari = await closeSafari(this, onlyDevices);
     const result = await closePlatform(this, onlyDevices);
+    if (safari.length) result.safari = safari;
     const native = [];
     for (const [id,target] of [...this.nativeTargets]) {
       if (onlyDevices && !onlyDevices.has(id)) continue;
@@ -570,12 +578,17 @@ export class Devices {
     try {
       checkWork();
       if (name !== 'poki_mcp_status' && name !== 'stop_recording') await phase('code_freshness',requireCurrentCode);
+      if (safariTools.has(name)) {
+        const lease = this.coordinator.require(this,args.lease_id);
+        const target = await this.target();
+        if (target.id !== args.device || lease.device !== target.id) throw new Error('Safari requires the exact leased device ID.');
+      }
       if (approvedTools.has(name)) await this.target();
       // Says on the result who let it run, so an agent can tell a gated call from an ordinary one.
       const approval = !approvedTools.has(name) ? undefined : process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? { mode: 'operator-preapproved', approved_by: 'operator' } : { mode: 'ask-human', approved_by: 'human' };
       if (approval?.mode === 'ask-human') {
-        const detail = args.path ?? args.project_path ?? args.bundle_id ?? args.url ?? (name === 'set_clipboard' ? `${Buffer.byteLength(args.text)} 字节的文本` : '');
-        const action = { install_app: '安装应用', uninstall_app: '卸载应用', build_and_run: '构建并运行应用', open_url: '打开链接', download_app_container: '下载应用数据', get_clipboard: '读取剪贴板', set_clipboard: '写入剪贴板' }[name];
+        const detail = args.path ?? args.project_path ?? args.bundle_id ?? (args.url ? urlApprovalDetail(args.url) : undefined) ?? (name === 'set_clipboard' ? `${Buffer.byteLength(args.text)} 字节的文本` : '');
+        const action = { install_app: '安装应用', uninstall_app: '卸载应用', build_and_run: '构建并运行应用', open_url: '打开链接', safari_open: '开启 Safari 自动化会话', download_app_container: '下载应用数据', get_clipboard: '读取剪贴板', set_clipboard: '写入剪贴板' }[name];
         const result = await askHuman(`是否允许${action}？\n设备：${args.device ?? this.selected ?? '当前选中的设备'}\n${detail}`, 120);
         if (!result.completed) return { isError: true, ...text({ ...result, executed: false }), _meta: { stop_reason: result.status === 'timeout' ? 'timeout' : 'cancelled' } };
       }
@@ -584,9 +597,16 @@ export class Devices {
         if (name === 'start_simulator') usedSimulators.add(this.selected);
         return { ...text(result), ...(result.isError ? { isError: true } : {}), ...(_meta || result.stop_reason ? { _meta: { ..._meta, ...(result.stop_reason ? { stop_reason: result.stop_reason } : {}) } } : {}) };
       }
+      if (safariTools.has(name)) return capabilityResult(await safariTool(this,name,args));
+      if (appActionTools.has(name)) {
+        if (['run_shortcut','get_app_action_status'].includes(name) && !this.coordinator.appActionJournalReady) throw new Error('Shortcut callback journal is unavailable. Check the local service setup.');
+        return capabilityResult(await appActionTool(this,name,args,this.coordinator.appActions));
+      }
       switch (name) {
+        case 'query_ui': return capabilityResult(await queryUI(this,args));
+        case 'wait_for_ui': return capabilityResult(await waitForUI(this,args));
         case 'acquire_device': return text(await this.coordinator.acquire(this, await this.target(false), args.ttl_seconds ?? 120));
-        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), jev_policy: process.env.POKI_JEV_DISABLED === '1' ? 'disabled' : 'opt-in', registered_device_tools: 53, observation_tools: 3, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
+        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), jev_policy: process.env.POKI_JEV_DISABLED === '1' ? 'disabled' : 'opt-in', registered_device_tools: 53, observation_tools: 5, phone_capability_tools: 12, phone_capabilities: {native_query:{collection:'full_native_ax',coverage:'reported_per_observation'},shortcut_callbacks:{...this.coordinator.appActions?.readiness(),journal_ready:this.coordinator.appActionJournalReady===true},safari_dom:{backend:'safaridriver',session:'isolated',owner_tabs:'unsupported',readiness:'checked_on_open'}}, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
         case 'list_devices': {
           const devices = await this.describeDevices(args.include_all_simulators);
           return text({ devices, ...(devices.some(d => d.kind === 'physical') ? {} : { notice: noUsbDevice }), ...(args.include_all_simulators ? { simulator_models: await simulatorModels() } : {}) });

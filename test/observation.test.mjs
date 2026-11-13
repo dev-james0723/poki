@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { rm, writeFile } from 'node:fs/promises';
 import { Devices } from '../src/device.mjs';
 import { join } from 'node:path';
+import { work } from '../src/work.mjs';
 import { fixture, value } from './fixture.mjs';
 
 // A phone over a network tunnel takes seconds per accessibility read; the fixture's delay stands in for it.
@@ -113,11 +114,32 @@ test('a screen says when its read began and how old it is', { timeout: 30000 }, 
 });
 
 test('launch_app gives the app a moment to come to the front and says how long it took', { timeout: 30000 }, async t => {
- const f=await fixture(t);await f.set({foregroundLagReads:6});
- const result=await f.call('launch_app',{bundle_id:'local.fixture'});
+ // Fake-native process startup under load must not consume the foreground grace period.
+ // Keep the real polling pauses, but give six stale reads a controlled monotonic clock.
+ const devices=new Devices(),id='fixture-phone',requests=[],realNow=performance.now.bind(performance);
+ let now=0,reads=0,readbacks=0;
+ t.mock.method(performance,'now',()=>now);
+ devices.target=async()=>({id,kind:'physical',name:'Phone'});
+ devices.bridge=async request=>{
+  requests.push(request);
+  if(request.op==='launch_app')return {bundle_id:request.bundle_id,pid:4242,launched:true};
+  assert.equal(request.op,'ax');
+  assert.equal(request.include_offscreen,false);
+  assert.equal(readbacks,0,'readback must follow verified foreground');
+  if(reads++)now+=150;
+  return {foreground:{pid:reads<=6?1:4242},elements:[]};
+ };
+ devices.readback=async()=>{readbacks++;return {screen:{text:'Button: First'}};};
+ const started=realNow();
+ const result=await work.run({signal:new AbortController().signal,timings:[]},()=>devices.dispatch('launch_app',{bundle_id:'local.fixture'}));
  assert.notEqual(result.isError,true,result.content[0].text);
  const launched=value(result);
- assert.equal(launched.foreground_verified,true);assert.ok(launched.foreground_after_ms>0);
+ assert.equal(launched.foreground_verified,true);
+ assert.equal(launched.foreground_after_ms,900);
+ assert.ok(realNow()-started>=850,'six foreground polls must wait between observations');
+ assert.equal(reads,7);assert.equal(readbacks,1);
+ assert.equal(requests.filter(request=>request.op==='launch_app').length,1,'polling must not relaunch');
+ assert.equal(launched.screen.text,'Button: First');
 });
 
 test('the Home Screen is named com.apple.springboard, and later reads of it say so too', async () => {

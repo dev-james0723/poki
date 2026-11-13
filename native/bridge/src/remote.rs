@@ -405,7 +405,11 @@ async fn reply(session: &mut Session, line: &str) -> Value {
     };
     let mut output = response.unwrap_or_else(|e| json!({"isError":true,"transport_error":true,"error":e.to_string(),"screen_change_verified":false}));
     output["native_runtime"] = json!({"pid":std::process::id(),"build_id":option_env!("POKI_BUILD_ID").unwrap_or("unversioned"),"version":env!("CARGO_PKG_VERSION"),"features":["bounded_ax","cancellable_ax","warm_hid","optional_ax_events","native_tap_sequence","bounded_ax_cleanup","native_paste_timings","video_only_hid"]});
-    output
+    let device = match &session.transport {
+        Transport::Local(id) => id,
+        Transport::Remote(config) => &config.id,
+    };
+    super::execution_receipt::with_runtime(output, device)
 }
 
 pub async fn serve(path: &str) -> Result<Value> {
