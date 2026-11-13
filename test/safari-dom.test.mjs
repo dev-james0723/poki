@@ -25,7 +25,9 @@ async function fixture(t) {
     calls: [], stops: 0, live: true, foreground: 'com.apple.mobilesafari',
     returnedUdid: UDID, useSimulator: false, revision: 0, now: 1000,
     loseMutation: false, actionError: null, queryDelay: 0, failAfterClick: false, clicked: false,
-    partial: false, failValue: false, mutationDelay: 0,
+    partial: false, failValue: false, mutationDelay: 0, gates: 0, queryCount: 0,
+    returnedPromptPolicy: undefined, actualPromptPolicy: null, dialog: false, implicitPromptChanges: 0,
+    nativePrompt: false, afterQuery: null, afterActivation: null, afterSession: null, beforeActivation: null,
   };
   const snapshot = () => ({
     url: state.url, origin: new URL(state.url).origin, title: 'Research fixture',
@@ -44,13 +46,20 @@ async function fixture(t) {
       res.end(JSON.stringify({value}));
     };
     if (req.method === 'POST' && req.url === '/session') {
+      state.actualPromptPolicy = input.capabilities.alwaysMatch.unhandledPromptBehavior ?? 'dismiss and notify';
+      state.afterSession?.();
       return send({sessionId: 'wd-session', capabilities: {
         browserName: 'Safari', platformName: 'iOS',
         'safari:deviceUDID': state.returnedUdid,
         'safari:useSimulator': state.useSimulator,
+        unhandledPromptBehavior: state.omitPromptPolicy ? undefined : state.returnedPromptPolicy ?? state.actualPromptPolicy,
       }});
     }
     if (req.method === 'DELETE') return send(null);
+    if (state.dialog) {
+      if (state.actualPromptPolicy !== 'ignore') {state.dialog = false; state.implicitPromptChanges++;}
+      return send({error: 'unexpected alert open', message: 'A simple dialog needs the owner'}, 500);
+    }
     if (req.url.endsWith('/timeouts')) return send(null);
     if (req.url.endsWith('/url')) {
       if (req.method === 'POST') state.url = input.url;
@@ -71,6 +80,21 @@ async function fixture(t) {
         const field = state.nodes.find(n => n.element[E] === input.args[0][E]);
         return send({...snapshot(), node: field ? {...field} : null});
       }
+      if (script.includes('poki-dom:activate')) {
+        state.beforeActivation?.();
+        const field = state.nodes.find(n => n.element[E] === input.args[0][E]), expected = input.args[1];
+        const fingerprint = n => JSON.stringify([n.tag,n.type,n.role,n.label,n.text,
+          n.value,n.secure,n.editable,n.href,n.target,n.download]);
+        if (state.url !== expected.url || state.document !== expected.root[E] || !field ||
+            fingerprint(field) !== expected.fingerprint) return send({refused: 'document_or_element_changed'});
+        if (state.loseMutation) {req.socket.destroy(); return;}
+        if (state.actionError) return send({refused: 'element_obscured'});
+        state.clicked = true;
+        state.nodes = [node('result', {tag: 'div', type: '', role: 'status',
+          label: 'Results', text: 'Two destinations', selector: '#results', editable: false})];
+        state.afterActivation?.();
+        return send({activated: true, method: 'dom_click', trusted_input_events: false});
+      }
       if (state.queryDelay) await new Promise(resolve => setTimeout(resolve, state.queryDelay));
       const result = snapshot();
       const query = input.args[0];
@@ -78,14 +102,18 @@ async function fixture(t) {
         result.nodes = result.nodes.filter(n => n.selector === query.selector);
         result.total = result.nodes.length;
       }
+      state.queryCount++;
+      state.afterQuery?.();
       return send(result);
     }
     if (/\/element\/[^/]+\/click$/.test(req.url)) {
+      state.beforeActivation?.();
       if (state.loseMutation) { req.socket.destroy(); return; }
       if (state.actionError) return send({error: state.actionError, message: 'refused'}, 400);
       state.clicked = true;
       state.nodes = [node('result', {tag: 'div', type: '', role: 'status',
         label: 'Results', text: 'Two destinations', selector: '#results', editable: false})];
+      state.afterActivation?.();
       return send(null);
     }
     send({error: 'unknown command', message: 'fixture route missing'}, 404);
@@ -111,6 +139,8 @@ async function fixture(t) {
   const controller = new SafariController(ctx, {
     now: () => state.now,
     gate: async expected => {
+      state.gates++;
+      if (state.nativePrompt) throw new Error('A blocking native prompt is present');
       if (expected && state.foreground !== expected) throw new Error('Safari is not the foreground app');
     },
     createDriver: async () => ({
@@ -142,7 +172,7 @@ test('physical session is exact UDID, isolated, and registered as owned backgrou
   const f = await fixture(t);
   assert.deepEqual(safariCapabilities({id: UDID, kind: 'physical'}), {
     browserName: 'Safari', platformName: 'iOS', 'safari:deviceUDID': UDID,
-    'safari:useSimulator': false, pageLoadStrategy: 'eager',
+    'safari:useSimulator': false, pageLoadStrategy: 'eager', unhandledPromptBehavior: 'ignore',
   });
   const session = await f.open();
   assert.equal(session.isolated_session, true);
@@ -230,7 +260,10 @@ test('click is complete only after a positive DOM condition is observed', async 
   assert.equal(result.dispatched, true);
   assert.equal(result.condition_verified, true);
   assert.equal(result.outcome, 'verified');
-  assert.equal(f.state.calls.filter(c => c.path.endsWith('/click')).length, 1);
+  assert.equal(result.method, 'dom_click');
+  assert.equal(result.trusted_input_events, false);
+  assert.equal(f.state.calls.some(c => c.path.endsWith('/click')), false);
+  assert.equal(f.state.calls.filter(c => typeof c.input.script === 'string' && c.input.script.includes('poki-dom:activate')).length, 1);
 });
 
 test('ambiguous mutations fence later writes and are never automatically replayed', async t => {
@@ -283,7 +316,7 @@ test('a driver read failure after a successful click cannot erase its dispatch e
   assert.equal(result.outcome, 'unknown');
   assert.notEqual(result.dispatched, false);
   await assert.rejects(f.controller.call('safari_act', action), /fenced|unknown/i);
-  assert.equal(f.state.calls.filter(c => c.path.endsWith('/click')).length, 1);
+  assert.equal(f.state.calls.filter(c => typeof c.input.script === 'string' && c.input.script.includes('poki-dom:activate')).length, 1);
 });
 
 test('missing echoed UDID or a simulator echo never navigates or switches to a default phone', async t => {
@@ -335,10 +368,12 @@ function scriptFixture() {
     }
     get value() {return this._value;}
     set value(value) {this._value = String(value);}
-    closest() {return null;}
+    closest(selector) {return selector === 'a[href]' ? (this.localName === 'a' ? this : this.linkForTest ?? null) : null;}
+    contains(element) {return element === this;}
+    click() {this.activations = (this.activations ?? 0) + 1; events.push({type: 'click', isTrusted: false});}
     matches() {return this.disabled;}
     getAttribute(name) {return name === 'aria-label' ? this.id : null;}
-    hasAttribute() {return false;}
+    hasAttribute(name) {return name === 'download' && this.downloadForTest === true;}
     getBoundingClientRect() {
       return {x: 10, y: 20, left: 10, top: 20, right: 210, bottom: 60,
         width: this.hiddenForTest ? 0 : 200, height: 40};
@@ -353,21 +388,22 @@ function scriptFixture() {
     document: {
       documentElement: root, readyState: 'complete', title: 'Fixture',
       body: {innerText: 'Public research'},
+      elementFromPoint() {return context.hitForTest ?? field;},
       querySelectorAll(selector) {
         if (selector.startsWith('#')) return elements.filter(element => '#' + element.id === selector);
         return elements;
       },
     },
     location: {href: ORIGIN + '/search', origin: ORIGIN},
-    innerWidth: 400, innerHeight: 800, CSS: {escape: value => value},
+    innerWidth: 400, innerHeight: 800, CSS: {escape: value => value}, URL,
     getComputedStyle: () => ({display: 'block', visibility: 'visible', opacity: '1'}),
-    HTMLInputElement: Input, HTMLTextAreaElement: Input,
+    HTMLInputElement: Input, HTMLTextAreaElement: Input, HTMLElement: Input,
     Event: class {constructor(type, options) {this.type = type; this.bubbles = options.bubbles; this.isTrusted = false;}},
   };
   const execute = (script, input) => runInNewContext('(function(){' + script + '}).apply(null, __args)',
     {...context, __args: input});
   const expected = node => ({
-    root, url: context.location.href, origin: ORIGIN,
+    root, url: context.location.href, origin: ORIGIN, allowed_origins: [ORIGIN],
     fingerprint: JSON.stringify([node.tag,node.type,node.role,node.label,node.text,
       node.value,node.secure,node.editable,node.href,node.target,node.download]),
   });
@@ -438,7 +474,7 @@ for (const mode of ['timeout', 'cancel']) test('a ' + mode + ' after field mutat
     c.input.script.includes('poki-dom:fill')).length, 1);
 });
 
-test('a known intercepted click is not sent and does not trigger an automatic retry', async t => {
+test('an obscured DOM activation is not sent and does not trigger an automatic retry', async t => {
   const f = await fixture(t);
   f.state.nodes = [node('go', {tag: 'button', type: 'button', role: 'button', editable: false})];
   const session = await f.open(), seen = await f.observe(session);
@@ -447,5 +483,107 @@ test('a known intercepted click is not sent and does not trigger an automatic re
     action: {kind: 'click', ref: seen.nodes[0].ref, expect: {state: 'present', selector: '#results'}}});
   assert.equal(result.outcome, 'not_sent');
   assert.equal(result.dispatched, false);
-  assert.equal(f.state.calls.filter(c => c.path.endsWith('/click')).length, 1);
+  assert.equal(f.state.calls.filter(c => typeof c.input.script === 'string' && c.input.script.includes('poki-dom:activate')).length, 1);
+});
+
+test('simple WebDriver dialogs remain untouched by observations and unsafe prompt policies fail closed', async t => {
+  const f = await fixture(t), session = await f.open();
+  assert.equal(session.prompt_policy.simple_dialogs, 'ignore');
+  assert.equal(session.prompt_policy.beforeunload, 'not_preserved_by_http_webdriver');
+  f.state.dialog = true;
+  await assert.rejects(f.observe(session), /unexpected alert open/);
+  assert.equal(f.state.dialog, true);
+  assert.equal(f.state.implicitPromptChanges, 0);
+  assert.equal(f.state.calls.some(c => /\/alert\/(?:accept|dismiss)$/.test(c.path)), false);
+  for (const mode of ['unsafe', 'missing']) {
+    const g = await fixture(t);
+    if (mode === 'unsafe') g.state.returnedPromptPolicy = 'dismiss and notify';
+    else g.state.omitPromptPolicy = true;
+    await assert.rejects(g.open(), /prompt policy|unhandledPromptBehavior/i);
+    assert.equal(g.state.calls.some(c => c.path.endsWith('/url')), false);
+  }
+});
+
+for (const change of ['href', 'url']) test('a live ' + change + ' change between inspect and activation sends no click', async t => {
+  const f = await fixture(t);
+  f.state.nodes = [node('link', {tag: 'a', type: '', role: 'link', editable: false,
+    href: ORIGIN + '/details', target: '', download: false})];
+  const session = await f.open(), seen = await f.observe(session);
+  f.state.beforeActivation = () => {
+    if (change === 'href') f.state.nodes[0].href = 'https://unexpected.example/';
+    else f.state.url = ORIGIN + '/different-route';
+  };
+  const result = await f.controller.call('safari_act', {...f.bound(session),
+    action: {kind: 'click', ref: seen.nodes[0].ref, expect: {state: 'present', selector: '#results'}}});
+  assert.equal(result.outcome, 'not_sent');
+  assert.equal(result.dispatched, false);
+  assert.equal(f.state.clicked, false);
+  assert.equal(f.state.calls.some(c => c.path.endsWith('/click')), false);
+});
+
+test('the actual fixed activation script checks live link and document guards immediately before a synthetic click', () => {
+  const f = scriptFixture();
+  f.field.localName = 'a'; f.field.href = ORIGIN + '/details'; f.field.target = '';
+  let observed = f.execute(safariDOMScripts.observe, [{selector: '#destination', max_nodes: 1, max_text_chars: 0}]);
+  let expected = f.expected(observed.nodes[0]);
+  f.field.href = 'https://unexpected.example/';
+  const changed = f.execute(safariDOMScripts.activate, [f.field, expected]);
+  assert.equal(changed.refused, 'element_changed');
+  assert.equal(f.field.activations ?? 0, 0);
+  f.field.href = ORIGIN + '/details';
+  observed = f.execute(safariDOMScripts.observe, [{selector: '#destination', max_nodes: 1, max_text_chars: 0}]);
+  expected = f.expected(observed.nodes[0]);
+  f.context.hitForTest = f.password;
+  assert.equal(f.execute(safariDOMScripts.activate, [f.field, expected]).refused, 'element_obscured');
+  assert.equal(f.field.activations ?? 0, 0);
+  f.context.hitForTest = f.field;
+  const activated = f.execute(safariDOMScripts.activate, [f.field, expected]);
+  assert.equal(activated.activated, true);
+  assert.equal(activated.method, 'dom_click');
+  assert.equal(activated.trusted_input_events, false);
+  assert.equal(f.field.activations, 1);
+  assert.deepEqual(f.events.map(event => event.type), ['click']);
+});
+
+test('open rechecks native state after startup and requires Safari foreground before ready', async t => {
+  const f = await fixture(t);
+  f.state.afterSession = () => {f.state.nativePrompt = true;};
+  await assert.rejects(f.open(), /native prompt/i);
+  assert.equal(f.state.calls.some(c => c.path.endsWith('/url')), false);
+  const g = await fixture(t);
+  g.state.afterQuery = () => {g.state.foreground = 'com.apple.mobilemail';};
+  const result = await g.open();
+  assert.equal(result.ready, false);
+  assert.equal(result.outcome, 'unknown');
+  assert.equal(result.retry_allowed, false);
+});
+
+test('wait checks native state at every poll and again before accepting a DOM match', async t => {
+  const f = await fixture(t), session = await f.open();
+  f.state.queryCount = 0;
+  f.state.afterQuery = () => {
+    f.state.nodes = [node('result', {selector: '#results'})];
+    f.state.foreground = 'com.apple.mobilemail';
+  };
+  await assert.rejects(f.controller.call('safari_wait_for', {...f.bound(session),
+    condition: {state: 'present', selector: '#results'}, timeout_ms: 500, poll_ms: 50}), /foreground/i);
+  assert.equal(f.state.queryCount, 1);
+  const g = await fixture(t), other = await g.open();
+  g.state.afterQuery = () => {g.state.nativePrompt = true;};
+  await assert.rejects(g.controller.call('safari_wait_for', {...g.bound(other),
+    condition: {state: 'present', selector: '#destination'}, timeout_ms: 500, poll_ms: 50}), /native prompt/i);
+});
+
+test('a native prompt after click dispatch prevents a verified result and fences later input', async t => {
+  const f = await fixture(t);
+  f.state.nodes = [node('go', {tag: 'button', type: 'button', role: 'button', editable: false})];
+  const session = await f.open(), seen = await f.observe(session);
+  f.state.afterActivation = () => {f.state.nativePrompt = true;};
+  const action = {...f.bound(session), action: {kind: 'click', ref: seen.nodes[0].ref,
+    expect: {state: 'present', selector: '#results'}}};
+  const result = await f.controller.call('safari_act', action);
+  assert.equal(result.outcome, 'unknown');
+  assert.equal(result.dispatched, true);
+  assert.equal(result.retry_allowed, false);
+  await assert.rejects(f.controller.call('safari_act', action), /unknown|fenced/);
 });

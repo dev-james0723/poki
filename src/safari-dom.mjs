@@ -30,7 +30,7 @@ export function safariCapabilities(target) {
   if (target.kind !== 'physical' || !/^[a-f0-9-]{20,64}$/i.test(target.id ?? ''))
     throw new Error('Safari DOM requires an exact physical iPhone UDID; simulators and aliases are not driver identities.');
   return {browserName: 'Safari', platformName: 'iOS', 'safari:deviceUDID': target.id,
-    'safari:useSimulator': false, pageLoadStrategy: 'eager'};
+    'safari:useSimulator': false, pageLoadStrategy: 'eager', unhandledPromptBehavior: 'ignore'};
 }
 
 // A closed loopback transport. No tool argument can choose a WebDriver server,
@@ -184,6 +184,7 @@ function domHelpers() {
   };
   const describe = element => {
     const box = element.getBoundingClientRect(), tag = element.localName;
+    const link = element.closest('a[href]') ?? (tag === 'a' ? element : null);
     const type = tag === 'input' ? element.type : tag === 'button' ? element.type : '';
     const secure = type === 'password';
     const enabled = !element.disabled && !element.matches(':disabled') &&
@@ -201,9 +202,9 @@ function domHelpers() {
         element.getAttribute('placeholder') || text, 500),
       text: clip(text), text_truncated: text.length > 1600,
       ...(value === undefined ? {} : {value: clip(value, 10000), value_truncated: value.length > 10000}),
-      selector: selectorFor(element), href: tag === 'a' ? clip(element.href, 4096) : undefined,
-      target: tag === 'a' ? clip(element.target, 80) : undefined,
-      download: tag === 'a' && element.hasAttribute('download'),
+      selector: selectorFor(element), href: link ? clip(link.href, 4096) : undefined,
+      target: link ? clip(link.target, 80) : undefined,
+      download: !!link && link.hasAttribute('download'),
       bounds: {x: box.x, y: box.y, width: box.width, height: box.height},
     };
   };
@@ -259,11 +260,36 @@ function fillDOM(element, expected, text, h) {
     !node.value_truncated && location.origin === expected.origin &&
     location.href === expected.url && document.documentElement === expected.root};
 }
+function activateDOM(element, expected, h) {
+  // Guard and activation share one synchronous script job. A separate element
+  // click request would lose these URL/root/semantic/link checks before input.
+  const refused = h.guard(element, expected);
+  if (refused) return {refused};
+  const node = h.describe(element);
+  if (node.secure || node.type === 'file') return {refused: 'protected_element'};
+  if (node.href !== undefined) {
+    let url;
+    try {url = new URL(node.href);} catch {return {refused: 'unsupported_link'};}
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
+        !expected.allowed_origins.includes(url.origin) || node.download ||
+        node.target && node.target !== '_self') return {refused: 'link_outside_scope'};
+  }
+  const box = node.bounds;
+  const x = (Math.max(0, box.x) + Math.min(innerWidth, box.x + box.width)) / 2;
+  const y = (Math.max(0, box.y) + Math.min(innerHeight, box.y + box.height)) / 2;
+  const hit = document.elementFromPoint(x, y);
+  if (!hit || hit !== element && !element.contains(hit)) return {refused: 'element_obscured'};
+  if (!(element instanceof HTMLElement) || typeof HTMLElement.prototype.click !== 'function')
+    return {refused: 'activation_unavailable'};
+  HTMLElement.prototype.click.call(element);
+  return {activated: true, method: 'dom_click', trusted_input_events: false};
+}
 const helpers = '(' + domHelpers.toString() + ')()';
 export const safariDOMScripts = Object.freeze({
   observe: '/* poki-dom:observe */ return (' + observeDOM.toString() + ')(arguments[0], ' + helpers + ');',
   inspect: '/* poki-dom:inspect */ return (' + inspectDOM.toString() + ')(arguments[0], arguments[1], ' + helpers + ');',
   fill: '/* poki-dom:fill */ return (' + fillDOM.toString() + ')(arguments[0], arguments[1], arguments[2], ' + helpers + ');',
+  activate: '/* poki-dom:activate */ return (' + activateDOM.toString() + ')(arguments[0], arguments[1], ' + helpers + ');',
 });
 const fingerprint = node => JSON.stringify([node.tag,node.type,node.role,node.label,node.text,
   node.value,node.secure,node.editable,node.href,node.target,node.download]);
@@ -323,7 +349,7 @@ export class SafariController {
     if (!session.allowed.has(args.expected_origin)) throw new Error('Expected origin is outside this Safari session scope.');
     if (name === 'safari_act' && session.fenced)
       throw new Error('Safari writes are fenced after an unknown outcome. Inspect the state and explicitly close this session; do not replay the action.');
-    if (name === 'safari_wait_for') return this.wait(session, args, true);
+    if (name === 'safari_wait_for') return this.wait(session, args);
     return deadline(name === 'safari_act' ? args.timeout_ms : 10000, async () => {
       await this.gate(SAFARI);
       return name === 'safari_act' ? this.act(session, target, args) : this.observe(session, args);
@@ -338,7 +364,7 @@ export class SafariController {
     this.ctx.coordinator.require(this.ctx, args.lease_id);
     const driver = await phase('safari_driver_start', () => this.createDriver());
     const session = {id: randomUUID(), device: target.id, lease_id: args.lease_id, driver,
-      allowed, refs: new Map(), fenced: false, wd: null};
+      allowed, refs: new Map(), fenced: false, wd: null, promptPolicyVerified: false};
     this.sessions.set(session.id, session);
     this.ctx.ownBackground(target.id, 'safari');
     let navigationStarted = false;
@@ -354,7 +380,11 @@ export class SafariController {
           String(caps?.['safari:deviceUDID']).toLowerCase() !== target.id.toLowerCase() ||
           caps?.['safari:useSimulator'] !== false)
         throw new Error('SafariDriver identity did not echo the exact physical iPhone UDID; refusing navigation.');
+      if (caps.unhandledPromptBehavior !== 'ignore')
+        throw new Error('SafariDriver did not negotiate unhandledPromptBehavior ignore; refusing navigation.');
+      session.promptPolicyVerified = true;
       await this.request(session, 'POST', '/timeouts', {implicit: 0, script: 5000, pageLoad: 15000});
+      await this.gate(SAFARI);
       this.ctx.coordinator.require(this.ctx, args.lease_id);
       this.ctx.changed(target);
       navigationStarted = true;
@@ -362,6 +392,9 @@ export class SafariController {
       const observation = await this.observe(session, {
         ...args, expected_origin: null, max_nodes: 30, max_text_chars: 2000,
       });
+      await this.gate(SAFARI);
+      checkWork();
+      this.ctx.coordinator.require(this.ctx, args.lease_id);
       return {...this.receipt(session), ready: true, origin: observation.origin, observation,
         readiness: 'live_isolated_session_verified', prerequisites: SETUP};
     } catch (error) {
@@ -374,7 +407,11 @@ export class SafariController {
   }
   receipt(session) {
     return {backend: 'safaridriver_w3c', device: session.device, session_id: session.id,
-      isolated_session: true, owner_tabs: 'unsupported', owner_cookies_reused: false};
+      isolated_session: true, owner_tabs: 'unsupported', owner_cookies_reused: false,
+      // HTTP WebDriver's string ignore policy covers simple dialogs. It does
+      // not preserve beforeunload prompts; those have separate protocol rules.
+      prompt_policy: {simple_dialogs: session.promptPolicyVerified ? 'ignore' : 'unverified',
+        beforeunload: 'not_preserved_by_http_webdriver'}};
   }
   request(session, method, path, body, options) {
     if (!session.wd) throw new Error('Safari session is not established.');
@@ -436,20 +473,25 @@ export class SafariController {
       observation.total === 1 && !nodes[0]?.secure && !nodes[0]?.value_truncated && nodes[0]?.value === condition.text;
     return false;
   }
-  async wait(session, args, checkNative = false) {
+  async wait(session, args) {
     const started = performance.now(); let attempts = 0, last;
     const outer = signal();
     try {
       return await deadline(args.timeout_ms, async () => {
-        if (checkNative) await this.gate(SAFARI);
         for (;;) {
           checkWork();
+          await this.gate(SAFARI);
           attempts++;
           last = await this.observe(session, {...args, selector: args.condition.selector,
             max_nodes: 50, max_text_chars: 0});
-          if (this.matches(last, args.condition))
+          if (this.matches(last, args.condition)) {
+            await this.gate(SAFARI);
+            checkWork();
+            this.ctx.coordinator.require(this.ctx, args.lease_id);
+            if (last.revision !== this.ctx.coordinator.revision(session.device)) continue;
             return {matched: true, attempts, elapsed_ms: Math.round(performance.now() - started),
               stop_reason: 'matched', observation: last};
+          }
           await pause(Math.min(args.poll_ms ?? 200, remainingMs(args.poll_ms ?? 200)));
         }
       });
@@ -466,7 +508,8 @@ export class SafariController {
         ref.revision !== this.ctx.coordinator.revision(target.id))
       throw new Error('DOM ref is stale, expired or from a different device revision. Observe again before acting.');
     if (ref.origin !== args.expected_origin) throw new Error('DOM ref origin differs from expected_origin.');
-    const expected = {origin: ref.origin, url: ref.url, root: ref.root, fingerprint: ref.fingerprint};
+    const expected = {origin: ref.origin, url: ref.url, root: ref.root, fingerprint: ref.fingerprint,
+      allowed_origins: [...session.allowed]};
     const before = await this.request(session, 'POST', '/execute/sync',
       {script: safariDOMScripts.inspect, args: [ref.element, expected]});
     this.checkSnapshot(session, before, args.expected_origin);
@@ -474,11 +517,11 @@ export class SafariController {
         before.refused || !before.node || fingerprint(before.node) !== ref.fingerprint)
       throw new Error('DOM document or element changed after observation. Observe again; no input was sent.');
     const node = before.node;
-    if (!node.visible || !node.enabled || node.secure || node.value_truncated)
+    if (!node.visible || !node.enabled || node.secure || node.type === 'file' || node.value_truncated)
       throw new Error('DOM element is hidden, disabled, secure or incomplete; no input was sent.');
     if (args.action.kind === 'fill' && (!node.editable || node.tag !== 'textarea' && /[\r\n]/.test(args.action.text)))
       throw new Error('DOM field is not editable or would require a line break in a single-line field; no input was sent.');
-    if (args.action.kind === 'click' && node.tag === 'a' &&
+    if (args.action.kind === 'click' && node.href !== undefined &&
         (!node.href || !session.allowed.has(originOf(node.href)) || node.download ||
           node.target && node.target !== '_self'))
       throw new Error('Link leaves the allowed origin or opens a download/new context; no click was sent.');
@@ -501,27 +544,40 @@ export class SafariController {
               reason: String(result.refused).slice(0, 100), retry_allowed: false};
           }
           actionAcknowledged = true;
+          const valueObservedAt = this.now();
           this.checkSnapshot(session, result, args.expected_origin);
           if (!result.text_verified || result.value !== args.action.text ||
               elementId(result.document) !== elementId(ref.root) || result.url !== ref.url)
             throw new Error('Live DOM field value was not verified after dispatch.');
+          await this.gate(SAFARI);
+          checkWork();
+          this.ctx.coordinator.require(this.ctx, args.lease_id);
           session.fenced = false;
           return {...this.receipt(session), outcome: 'verified', dispatched: true,
             text_verified: true, method: 'dom_setter', trusted_input_events: false,
             submitted: false, submit_requested: false, application_success: false,
             site_event_handlers_may_run: true, evidence_scope: 'live_field_value_only',
-            captured_at: new Date(this.now()).toISOString()};
+            captured_at: new Date(valueObservedAt).toISOString()};
         }
-        await this.request(session, 'POST', '/element/' + encoded(elementId(ref.element)) + '/click',
-          {}, {mutation: true});
+        const activation = await this.request(session, 'POST', '/execute/sync', {
+          script: safariDOMScripts.activate, args: [ref.element, expected],
+        }, {mutation: true});
+        if (activation?.refused) {
+          session.fenced = false;
+          return {...this.receipt(session), outcome: 'not_sent', dispatched: false,
+            method: 'dom_click', trusted_input_events: false,
+            reason: String(activation.refused).slice(0, 100), retry_allowed: false};
+        }
+        if (activation?.activated !== true) throw new Error('DOM activation was not acknowledged.');
         actionAcknowledged = true;
         const proof = await this.wait(session, {...args, condition: args.action.expect,
           timeout_ms: remainingMs(args.timeout_ms), poll_ms: 200});
         if (!proof.matched) return {...this.receipt(session), outcome: 'unknown',
-          dispatched: true, condition_verified: false, retry_allowed: false, stop_reason: proof.stop_reason};
+          dispatched: true, method: 'dom_click', trusted_input_events: false,
+          condition_verified: false, retry_allowed: false, stop_reason: proof.stop_reason};
         session.fenced = false;
         return {...this.receipt(session), outcome: 'verified', dispatched: true,
-          condition_verified: true, evidence_scope: 'requested_dom_condition', observation: proof.observation};
+          method: 'dom_click', trusted_input_events: false, condition_verified: true, evidence_scope: 'requested_dom_condition', observation: proof.observation};
       });
     } catch (error) {
       if (!actionAcknowledged && error instanceof DriverError && error.outcome === 'not_sent') {
@@ -530,6 +586,7 @@ export class SafariController {
           retry_allowed: false, error: error.message};
       }
       return {...this.receipt(session), outcome: 'unknown', retry_allowed: false,
+        method: args.action.kind === 'click' ? 'dom_click' : 'dom_setter', trusted_input_events: false,
         ...(actionAcknowledged ? {dispatched: true} : {}),
         condition_verified: false, error: error.message,
         stop_reason: error.name === 'TimeoutError' || error.cause?.name === 'TimeoutError'
