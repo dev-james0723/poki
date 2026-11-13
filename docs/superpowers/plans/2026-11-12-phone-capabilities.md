@@ -6,6 +6,7 @@
 **Architecture:** AX-only predicates; daemon-owned shortcut journal/callback receiver; shared iOS task registry; lease-bound W3C Safari adapter.
 **Tech Stack:** Node.js 24, Zod, native Rust AX bridge, Swift App Intents, Apple SafariDriver.
 **Spec:** docs/superpowers/specs/2026-11-12-phone-capabilities.md
+**Authorization:** The user authorized implementation, commit, push and deployment. The initial backend and route subset are engineering choices; the broader selected outcomes remain required.
 
 ## Global Constraints
 - Work only in assigned isolated worktree; do not write the installed dirty checkout or interrupt its live owner.
@@ -41,7 +42,7 @@ Cross-device actions; stale/incomplete absence proofs; callback replay/restart; 
 - [ ] Write failing behavioral tests for idempotency, exact device binding, callback states, restart barrier and no dispatch with invalid origin.
 - [ ] Implement durable private journal, strict callback endpoint and bounded retained receipt handling.
 - [ ] Export HTTP handler for root's daemon/relay integration; explicit reachable origin required.
-- [ ] Add small owned-route registry with honest verification metadata.
+- [ ] Add an initial owned-route registry with honest verification metadata; retain the required 5–10 useful common-app workflows as outstanding until implemented and physically verified.
 - [ ] Implement Swift intents reusing existing task ownership/cancellation; compile or report exact compiler blocker.
 - [ ] Run targeted tests and npm test, inspect diff, commit only owned files.
 - [ ] Report callback handler contract, cleanup, Swift build evidence and commit.
@@ -83,5 +84,11 @@ Cross-device actions; stale/incomplete absence proofs; callback replay/restart; 
 - Use the public native-speed branch as an explicit stacked dependency; the installed dirty private tree is not a public source.
 - Independent implementations run concurrently in separate worktrees; shared files have one owner.
 - Do not invent scoped iOS AX queries absent a verified native API.
-- Use SafariDriver now; owner-session Web Inspector needs a separately verified backend.
+- Use SafariDriver as the selected first backend. Evaluate owner-page Web Inspector/CDP after public-page acceptance; do not promise unrestricted access to tabs or WebViews.
 - Callback origin is configured rather than guessed; root will inspect the existing ingress path.
+
+## Required outcomes still outstanding
+
+- Investigate native collection narrowing or reuse of sufficiently fresh field evidence through the actual idevice/iOS interfaces. Record supported scope and measured latency against the full-tree path on the intended phone, or evidence of the interface limitation; current query projection does not complete this efficiency outcome.
+- Deliver and physically verify the initial 5–10 useful workflows for the user's common apps, recording supported links/actions, parameters and expected destinations. The three internal Poki routes are an initial subset.
+- After public-page Safari acceptance, evaluate Web Inspector/CDP for actually inspectable Safari pages or WebViews and workflows requiring a private login. Direct SafariDriver remains the legitimate first backend; owner-session support is not currently delivered.

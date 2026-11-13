@@ -2,6 +2,8 @@
 
 This branch adds twelve MCP tools and three iOS App Intents. The tools appear in the default MCP profile. Safari requires an explicit device lease; ordinary native queries and Shortcut calls retain the existing coordinator and approval policy.
 
+These APIs are an initial delivery of the selected request. Implementation authorization did not separately approve narrowing the original outcomes; the outstanding work below remains required.
+
 ## Capability boundaries
 
 | Capability | Interface | Evidence returned |
@@ -39,6 +41,8 @@ Example MCP tool arguments:
 Pass those arguments to `query_ui`. For a bounded wait, use `wait_for_ui` and add `timeout_ms` and optionally `poll_ms`. Defaults are 6 seconds for a query and 10 seconds for a wait; both cap at 30 seconds. Queue time counts toward those deadlines.
 
 The native request still collects a full AX tree. This release reduces the result to the requested proof; it does not establish faster native collection. Missing, malformed or unresolved child coverage stays incomplete. Unknown element geometry stays unknown rather than becoming evidence that the element is absent. Privacy/passcode prompts are checked before viewport filtering.
+
+Investigating native collection narrowing or reuse of sufficiently fresh field evidence remains required. Compare the supported path with full-tree collection on the intended phone and record measured scope/latency or the observed interface limitation; this release has not completed that acceptance.
 
 An observed visible element can prove presence. One exact object ID can prove its own field value or bounds when its narrower selector is unambiguous. Absence and general uniqueness additionally require complete relevant coverage. Receipts distinguish `native_source_complete`, `visibility_complete`, `source_complete`, and query-specific completeness. A field value proves neither save nor send.
 
@@ -93,7 +97,7 @@ The iOS app provides `StartPokiTaskIntent`, `GetPokiTaskStatusIntent`, and `Canc
 
 Start accepts either nonempty task text or one UTF-8 plain-text file, up to 8192 bytes. An optional stable operation ID deduplicates starts. Status retains task state and result. Cancellation requests the existing runner to stop; it does not reverse completed phone actions.
 
-Installing the updated iOS build is required for these intents and destination markers. The initial navigation catalog is deliberately limited to owned routes:
+Installing the updated iOS build is required for these intents and destination markers. The initial implemented navigation catalog contains three owned Poki routes:
 
 | Link ID | URL | Required AX identifier |
 |---|---|---|
@@ -102,6 +106,8 @@ Installing the updated iOS build is required for these intents and destination m
 | `poki.activity` | `poki://log` | `poki.route.activity` |
 
 Listing reports physical verification as pending. An individual `open_verified_link` call can verify the current destination only from fresh complete AX evidence. Older app builds without markers return unverified.
+
+These three routes are an initial subset. The required initial set of 5–10 useful workflows for the user's common apps remains outstanding, including supported link/action parameters, expected destinations and physical verification receipts. Generic installed-Shortcut execution alone does not supply or validate that workflow collection.
 
 ## Physical Safari DOM
 
@@ -130,6 +136,8 @@ Both fill and click use DOM operations with untrusted events. Sites requiring tr
 Simple dialogs must negotiate `unhandledPromptBehavior: ignore`. HTTP WebDriver does not preserve `beforeunload` warnings; do not depend on them to protect drafts in this isolated session. Native foreground and prompt checks run before reads/actions and again before final proof. Those AX reads count toward the 15-second default wait/action budget; the maximum is 30 seconds.
 
 Unknown actions fence later writes and are never automatically replayed. Isolated Safari sessions do not inherit the owner's ordinary cookies, history, AutoFill or login state. Owner-session Web Inspector/CDP remains explicitly unsupported.
+
+SafariDriver matches the selected first path for public travel search and reading. After public-page acceptance, evaluate Web Inspector/CDP for actually inspectable Safari pages or WebViews and workflows requiring a private login; that evaluation is still pending and carries no promise of unrestricted owner-session access.
 
 ## Verification and rollout
 

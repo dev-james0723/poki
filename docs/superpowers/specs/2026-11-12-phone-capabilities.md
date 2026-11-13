@@ -1,7 +1,7 @@
 # Poki phone capabilities — PRD and engineering specification
 
 Date: 2026-11-12
-Status: approved for implementation by the user's explicit implement/commit/push/deploy request.
+Status: implementation, commit, push and deployment authorized by the user. The initial backend choices below are engineering decisions, not separate user approval to narrow the selected outcomes.
 Scope: targeted AX reads/waits, correlated Shortcuts and task App Intents, verified navigation, physical-iPhone Safari DOM.
 Base: public native-speed branch at 73d5f0b. Work in isolated dev/* worktrees.
 
@@ -9,7 +9,7 @@ Base: public native-speed branch at 73d5f0b. Work in isolated dev/* worktrees.
 1. Ask whether an exact visible field equals text, results exist, a button remains at expected bounds, or a loading indicator has disappeared.
 2. Execute an installed Shortcut once, correlate its success/cancel/error result to the correct phone and operation, and report uncertainty without replay.
 3. Start, inspect and cancel retained Poki tasks through iOS App Intents using the existing task and approval machinery.
-4. Navigate through a small explicit deep-link registry and verify the destination; advertise physical verification only when a live receipt exists.
+4. Deliver an initial set of 5–10 useful workflows for the user's common apps, with supported links/actions, parameters, expected destinations and physical verification recorded. The three owned Poki routes are an initial subset, not fulfillment of this outcome.
 5. Use DOM references for public Safari research and form preparation on the selected physical phone.
 6. Expose complete contracts, tests, capability readiness and release evidence.
 
@@ -36,6 +36,8 @@ Full-tree prompt detection precedes filtering. Offscreen/unavailable/stale/wrong
 Events may wake a poll but cannot stand in for the final fresh read. Initial release may use bounded polling.
 Do not seed or reuse input targets from a read-only query.
 
+Outstanding efficiency work: investigate whether the existing idevice/iOS interfaces support narrowing native collection or reusing sufficiently fresh field evidence without weakening the proof requirements. Record supported scope and measured latency against the full-tree path on the intended physical phone, or the observed interface limitation. This investigation and measured acceptance remain required; predicates and waits alone do not complete that outcome.
+
 ## 2. Shortcut completion and navigation
 New tools: run_shortcut, get_app_action_status, list_app_links, open_verified_link.
 Keep existing run_app_action compatibility. New callback execution is the explicit reliable completion path.
@@ -50,7 +52,7 @@ Callback endpoint is result-only, bounded and strict. Reject unknown fields, ove
 POKI_SHORTCUT_CALLBACK_BASE_URL is explicit, phone-reachable HTTPS; missing/invalid setup refuses before any URL dispatch.
 Root integrates the endpoint/relay. Service constructor accepts explicit origin and state path for tests. No automatic public listener or guessed hostname.
 Success callback and optional app-state proof are separate fields.
-Initial link registry includes only owned Poki routes with exact supported parameters. Each entry includes expected app/route evidence and physical verification status.
+The initial implemented link registry contains only the three owned Poki routes, with exact supported parameters, expected app/route evidence and honest physical verification status. The common-app workflow inventory, link/action definitions and physical verification needed to complete the set of 5–10 useful workflows remain outstanding.
 Unsupported routes reject before navigation. Use existing open_url authority. No arbitrary URL scheme registry or arbitrary command execution.
 
 ## 3. iOS App Intents
@@ -76,6 +78,7 @@ Act requires current observed ref, expected origin, correct Safari foreground an
 Wait uses bounded predicates, deadline and cancellation. Never automatically retry uncertain actions.
 Close and device lease/session cleanup delete only sessions/processes owned by this context.
 No owner-tab Web Inspector/CDP takeover in this release unless separately implemented and verified; report unsupported instead of substituting an isolated session silently.
+SafariDriver is the selected first backend for public travel search and reading acceptance. After that acceptance, evaluate Web Inspector/CDP for actually inspectable Safari pages or WebViews and workflows requiring a private login. That evaluation remains pending; no unrestricted owner-tab takeover is promised.
 
 ## Acceptance and release
 - Meaningful unit tests exercise exact match/absence/completeness, prompts, deadlines, cancellation and wrong app/device.
