@@ -7,3 +7,6 @@ build/
 .env
 .env.*
 native/launcher/target/
+
+# Per-build CI reports are published by Cloudflare Pages.
+.ci-output/

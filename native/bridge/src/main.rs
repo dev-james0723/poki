@@ -6,6 +6,7 @@ mod gesture;
 mod installation;
 mod pasteboard;
 mod remote;
+mod execution_receipt;
 mod stream;
 mod session_input;
 
@@ -400,6 +401,9 @@ impl Request {
 async fn main() {
     let result = async {
         let args: Vec<String> = std::env::args().collect();
+        if args.len() == 2 && args[1] == "--build-info" {
+            return Ok(execution_receipt::build_info());
+        }
         if args.len() == 4 && args[1] == "--local-server" {
             return remote::serve_local(&args[2], &args[3]).await;
         }
@@ -518,6 +522,7 @@ async fn execute_connected(
     media: &mut Option<InputMedia>,
     observer: &mut Option<ax::Monitor>,
 ) -> Result<Value> {
+    execution_receipt::measure(async {
     if let Request::OpenUrl { url } = request {
         *observer = None;
         close_input(media).await.map_err(not_sent_error)?;
@@ -786,6 +791,8 @@ async fn execute_connected(
         value["native_input"] = json!({"touch_reused":touch_reused,"keyboard_reused":keyboard_reused,"idle_release_ms":5000,"delivery_hold_ms":300});
         value
     })
+    })
+    .await
 }
 
 async fn held_tap(hid: &mut Touch, x: u16, y: u16, ms: u64) -> Result<()> {

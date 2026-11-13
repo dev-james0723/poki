@@ -59,7 +59,7 @@ deploys) and `SHA256SUMS`, plus Poki Setup's `PokiSetup-*` installers and `SHA25
 
 ## Branches
 
-- `main`: protected trunk; PRs only. Every merge is a pre-alpha.
+- `main`: trunk; submit changes through PRs. Every merge is a pre-alpha.
 - `dev/<topic>`: one change, one PR into `main`, deleted on merge.
 - `release/X.Y`: from a version's first beta; takes cherry-picked fixes from `main` for later betas
   and X.Y.Z hotfixes.
@@ -67,8 +67,15 @@ deploys) and `SHA256SUMS`, plus Poki Setup's `PokiSetup-*` installers and `SHA25
 
 ## Checks
 
-`pr-checks.yml` runs on every PR into `main` or `release/**`, on Linux only so it never takes one of
-the 5 macOS runners: Poki Setup's core tests, the Rust lockfiles, and the workflows (actionlint).
+Cloudflare Pages runs the Linux CI command in [ci-linux.md](ci-linux.md) for branch pushes
+and reports the native `Cloudflare Pages` check against the tested commit. It covers Poki Setup's
+core/CLI tests, both Rust lockfiles, workflows, release-script syntax, and selected CLI/dual-phone
+regressions. It does not consume GitHub Actions runners.
+
+`pr-checks.yml` is now manual (`workflow_dispatch`, named `Manual compatibility checks`).
+It retains the Windows authentication job for an explicitly requested compatibility run.
+A passing Linux check does not prove Windows execution, macOS/iOS builds, or physical-phone
+acceptance. Release and promotion workflows remain subject to their existing approval rules.
 
 ## Setup (once)
 
@@ -80,7 +87,10 @@ the 5 macOS runners: Poki Setup's core tests, the Rust lockfiles, and the workfl
   required reviewer and administrator bypass disabled. Self-review prevention is off so the owner
   can approve a run they started. Agents must not approve on the owner's behalf.
   See [GitHub's environment setup](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
-- Branch protection on `main`: the `PR checks` jobs and `promotion gate / verdict` as required checks.
+- For branch protection on `main`, require the native `Cloudflare Pages` check from the verified
+  Pages integration for Linux CI and retain `promotion gate / verdict`. Preserve any separately
+  required Windows validation; the Linux status cannot replace it. Migrate check contexts only
+  after verifying the new provider reports on the intended commit.
 
 ## Fallback
 

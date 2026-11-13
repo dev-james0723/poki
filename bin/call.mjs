@@ -9,7 +9,7 @@ const name = process.argv[2] ?? 'poki_mcp_status';
 const args = JSON.parse(process.argv[3] ?? '{}');
 const client = new Client({ name: 'poki-mcp-cli', version: '0.2.0' });
 try {
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(root, 'src/stdio.mjs')], env: { ...process.env, POKI_MCP_SESSION: process.env.POKI_MCP_SESSION ?? 'terminal' } }));
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(root, 'src/stdio.mjs')], env: { ...process.env } }));
   const result = await client.callTool({ name, arguments: args }, { timeout: 3700000 });
   for (const [index, content] of result.content.entries()) {
     if (content.type === 'image') {
