@@ -69,7 +69,7 @@ test('stdio reaches the authenticated local MCP service and rejects an absent de
         const { tools } = await transportClient.listTools();
         t.diagnostic(`default tools/list: ${tools.length} tools, ${JSON.stringify({ tools }).length} characters`);
         assert.deepEqual(tools.map(tool => tool.name).sort(), [
-          'poki_mcp_status', 'list_devices', 'select_device', 'list_elements', 'take_screenshot',
+          'poki_mcp_status', 'list_devices', 'select_device', 'list_elements', 'snapshot_ui', 'observe_fast', 'take_screenshot',
           'get_foreground_app', 'launch_app', 'open_url', 'tap', 'tap_text', 'fill', 'type_text',
           'scroll', 'swipe', 'press_key', 'go_back', 'wait_for', 'handle_alert', 'batch_commands',
           'long_press', 'double_tap', 'drag', 'hide_keyboard', 'press_button',
@@ -79,7 +79,7 @@ test('stdio reaches the authenticated local MCP service and rejects an absent de
         assert.ok(!status.isError);
         const statusValue = JSON.parse(status.content[0].text);
         assert.equal(typeof statusValue.devices, 'number');
-        assert.equal(statusValue.total_tools, 63);
+        assert.equal(statusValue.total_tools, 69);
         assert.equal(statusValue.implementation, 'Poki MCP 0.1.1');
         assert.equal(statusValue.commit, 'unknown', 'A packaged copy outside Git must report unknown');
         assert.equal(statusValue.native_build, (await stat(join(f.dir, 'build/poki-native'))).mtime.toISOString());
@@ -88,7 +88,7 @@ test('stdio reaches the authenticated local MCP service and rejects an absent de
     } finally { await httpClient.close(); }
     const fullClient = await f.connect('all');
     const full = await fullClient.listTools();
-    assert.equal(full.tools.length, 63);
+    assert.equal(full.tools.length, 69);
     for (const tool of (await client.listTools()).tools) {
       assert.deepEqual(tool, full.tools.find(candidate => candidate.name === tool.name));
     }
@@ -144,10 +144,10 @@ test('an all-profile HTTP service still lets each stdio client choose its own li
     requestInit: { headers: { Authorization: `Bearer ${endpoint.token}`, 'x-poki-mcp-session': 'all-profile-contract' } },
   }));
   const full = await httpClient.listTools();
-  assert.equal(full.tools.length, 63);
+  assert.equal(full.tools.length, 69);
   assert.deepEqual(await f.a.listTools(), full);
   const defaultClient = await f.connect('');
-  assert.equal((await defaultClient.listTools()).tools.length, 29);
+  assert.equal((await defaultClient.listTools()).tools.length, 31);
   assert.deepEqual(await httpClient.listTools(), full);
   assert.equal(value(await defaultClient.callTool({ name: 'wait', arguments: { seconds: 0 } })).waited, 0);
 });
@@ -165,7 +165,7 @@ test('Poki Agent opens its own MCP with the complete catalog even when the paren
     } finally { await client.close(); }
   `], { env: f.env });
   const { tools, result } = JSON.parse(stdout);
-  assert.equal(tools.length, 63);
+  assert.equal(tools.length, 69);
   for (const name of ['list_apps', 'observe_device', 'hide_keyboard', 'acquire_device', 'reconnect_device', 'disconnect_device']) {
     assert.ok(tools.some(tool => tool.name === name), name);
   }
@@ -216,14 +216,29 @@ for (const signal of ['SIGTERM', 'SIGKILL']) {
   });
 }
 
-test('a client started with no service says to run npm start, with the endpoint file left behind or gone', { timeout: 30000 }, async t => {
+test('native MCP catalog stays available with no daemon and the same client recovers without replay', { timeout: 30000 }, async t => {
   const f = await fixture(t);
-  const { token } = await endpointOf(f);
-  await f.daemon.stop('SIGKILL');
-  const start = () => promisify(execFile)(process.execPath, [join(f.dir, 'src/stdio.mjs')], { env: f.env, timeout: 10000 }).then(() => assert.fail('stdio kept running'), error => error.stderr);
-  for (const stderr of [await start(), await rm(endpointFile(f)).then(start)]) {
-    assert.match(stderr, /npm start/);
-    assert.ok(!stderr.includes(token));
+  let running = f.daemon;
+  for (const missing of [false, true]) {
+    const { token, port } = await endpointOf(f);
+    await running.stop('SIGKILL');
+    if (missing) await rm(endpointFile(f));
+    const client = new Client({ name: 'offline-catalog', version: '1' });
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(f.dir, 'src/stdio.mjs')], env: { ...f.env, POKI_MCP_TOOLS: 'all' } }));
+    try {
+      const catalog = await client.listTools();
+      for (const name of ['snapshot_ui', 'tap', 'fill', 'batch_commands', 'reconnect_device', 'disconnect_device'])
+        assert.ok(catalog.tools.some(tool => tool.name === name), name);
+      assert.equal(catalog.tools.length, 69);
+      const offline = await client.callTool({ name: 'poki_mcp_status', arguments: {} });
+      assert.equal(offline.isError, true);
+      assert.match(offline.content[0].text, /npm start/);
+      assert.ok(!offline.content[0].text.includes(token));
+      running = await f.startDaemon(port);
+      const recovered = await client.callTool({ name: 'poki_mcp_status', arguments: {} });
+      assert.ok(!recovered.isError, JSON.stringify(recovered));
+      assert.equal(value(recovered).total_tools, 69);
+    } finally { await client.close(); }
   }
 });
 

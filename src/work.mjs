@@ -59,3 +59,5 @@ export function execute(file, args, { timeout = 45000, input, env, maxBuffer = 3
     child.stdin.end(input);
   }));
 }
+
+export function remainingMs(fallback = 20000) { checkWork(); const end = work.getStore()?.deadline; return Math.max(1, Math.min(fallback, end === undefined ? fallback : Math.floor(end-performance.now()))); }

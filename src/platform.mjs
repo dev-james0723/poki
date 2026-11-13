@@ -467,6 +467,25 @@ async function observeAction(ctx, action) {
 }
 
 async function openURL(ctx, target, url) {
+  if (target.remote) {
+    // This experimental path preserves the existing approval gate in Devices.
+    // A CoreDevice acceptance is not proof that the requested page loaded.
+    try { if (!new URL(url).protocol) throw new Error(); }
+    catch { throw new Error('URL must include a scheme.'); }
+    let result;
+    try { result = await ctx.bridge({ op: 'open_url', url }); }
+    catch {
+      return { isError:true, outcome:'unknown', stop_reason:'unknown', retry:'unsafe', opened_verified:false,
+        instruction:'The remote request may have been delivered. Inspect the device before retrying.' };
+    }
+    finally { ctx.frame = undefined; ctx.elements = []; }
+    if (result?.outcome === 'not_sent' && result.isError === true && result.sent === false) return result;
+    if (result?.outcome === 'accepted' && result.accepted === true && !result.isError &&
+        result.opened_verified === false && Number.isSafeInteger(result.pid) && result.pid > 0)
+      return { ...result, stop_reason:'unverified' };
+    return { isError:true, outcome:'unknown', stop_reason:'unknown', retry:'unsafe', opened_verified:false,
+      instruction:'The remote result could not be confirmed. Inspect the device before retrying.' };
+  }
   return observeAction(ctx, async () => {
     try { await openURLTransport(target, url); }
     catch (error) {
@@ -724,7 +743,7 @@ export function terminateAppMatch(app, runningProcesses) {
 export async function platformTool(ctx, name, args = {}) {
   if (name === 'start_simulator') return startSimulator(ctx, args);
   const target = await ctx.target();
-  if (target.remote && !['list_apps', 'launch_app'].includes(name)) throw new Error(`${name} is unavailable over RemotePairing. Remove this device from remote-devices.json and reconnect over USB or local Wi-Fi.`);
+  if (target.remote && !['list_apps', 'launch_app', 'open_url'].includes(name)) throw new Error(`${name} is unavailable over RemotePairing. Remove this device from remote-devices.json and reconnect over USB or local Wi-Fi.`);
   if (!['list_apps', 'get_clipboard', 'list_crashes', 'get_crash', 'download_app_container', 'start_recording', 'stop_recording'].includes(name)) ctx.changed(target);
   const changesApps = ['install_app', 'uninstall_app', 'build_and_run'].includes(name);
   try {

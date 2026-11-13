@@ -55,3 +55,20 @@ The verified hardware case is only iPhone17,1 in portrait orientation with a six
 Read the visible prompt and its reported kind. Use `handle_alert` with a button label or `action: "accept"` / `"dismiss"` to choose a visible button. For a purchase prompt, generic `action: "accept"` leaves the prompt open and returns its kind and available buttons. After the action, read the screen to confirm the dialog closed and the task reached its intended state.
 
 For login or verification, use the credentials available for the authorized task. Read a requested SMS verification code from Messages or notifications, enter it, and verify the resulting screen. Confirm a purchase only when the user's task explicitly requests that purchase. In that case, set `button` to the visible purchase button text. Otherwise dismiss the prompt or continue the task without purchasing.
+
+## Known workflows with one AX checkpoint
+
+Keep known short workflows in one native `batch_commands` call. When the intended final state is verifiable from accessibility, end the batch with `snapshot_ui` (using live AX, and enough `max_elements` for a complete tree). A successful complete live snapshot from the same device/revision, started after the last input, becomes the final screen report; Poki does not capture or read the same screen again. The report includes its `observation_id` and `screen_stable:false`: a fresh checkpoint is not an animation-stability guarantee. A failed, partial, event-derived, wrong-device or superseded snapshot retains the regular readback path.
+
+Use `verify:false` only on reviewed reversible steps whose effect the final checkpoint can verify. Keep per-step verification when following actions depend on a transition that needs confirmation. Ordinary batches retain their unchanged-screen warnings. Start observation as the app reacts; an unchanged early tree still waits and is confirmed. Canvas/image outcomes need one appropriate visual check. An input receipt alone never proves the task succeeded.
+
+
+## Bounded native workflows (stage two)
+
+After a normal MCP client reconnect exposes the new names, prefer `run_workflow` for a reviewed declarative plan with an exact device, expected app, live start condition and positive final condition. It uses the existing native sandbox and stops on failed checkpoints or unknown delivery. Never substitute a Terminal phone client.
+
+`tap_sequence` supports only 2–8 observed numeric Key labels on an asserted fixed layout. Require the live helper feature `native_tap_sequence`, fresh geometry and app guards; its dispatch receipt remains unverified until an independent result check. Never replay an uncertain sequence. `snapshot_ui.query` projects output from a full native tree; it does not reduce iPhone AX acquisition latency and cannot replace a whole-screen checkpoint.
+
+`run_app_action` invokes an existing reviewed Shortcut through ordinary URL approval and verifies a fresh visible result. `choose_action` stays local by default; external proposals require their own minimized-data and potentially billable request approval. A proposal never authorizes execution.
+
+Batch/workflow receipts expose service, dispatch, queue/admission and nested native phase timings in content because some hosts drop `_meta`. Do not sum parent and child phase totals. A `diagnostic_only` receipt preserves an early error and does not establish whether input was delivered. Global `POKI_MCP_TOOLS=all` and an updated daemon do not hot-load new tool names into an already connected chat; verify actual discovery after reconnect.

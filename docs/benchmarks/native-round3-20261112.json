@@ -1,0 +1,2389 @@
+{
+  "date": "2026-11-12",
+  "device": "Sing iPhone 15 Pro Max",
+  "control_surface": "native Poki MCP only",
+  "protocol": "warm controlled reset; preparation excluded; timed action plus full final AX snapshot",
+  "summary": {
+    "Settings": {
+      "before": {
+        "n": 3,
+        "values_ms": [
+          3129,
+          3026,
+          4215
+        ],
+        "median_ms": 3129,
+        "mean_ms": 3456.6666666666665
+      },
+      "after": {
+        "n": 3,
+        "values_ms": [
+          3763,
+          1633,
+          1596
+        ],
+        "median_ms": 1633,
+        "mean_ms": 2330.6666666666665
+      }
+    },
+    "Clock": {
+      "before": {
+        "n": 3,
+        "values_ms": [
+          3081,
+          3764,
+          3075
+        ],
+        "median_ms": 3081,
+        "mean_ms": 3306.6666666666665
+      },
+      "after": {
+        "n": 3,
+        "values_ms": [
+          1535,
+          1542,
+          1531
+        ],
+        "median_ms": 1535,
+        "mean_ms": 1536
+      }
+    },
+    "Notes": {
+      "before": {
+        "n": 3,
+        "values_ms": [
+          12614,
+          11380,
+          14805
+        ],
+        "median_ms": 12614,
+        "mean_ms": 12933
+      },
+      "after": {
+        "n": 3,
+        "values_ms": [
+          10380,
+          9879,
+          7724
+        ],
+        "median_ms": 9879,
+        "mean_ms": 9327.666666666666
+      }
+    }
+  },
+  "navigation": {
+    "before_six_ms": 20290,
+    "after_six_ms": 11600,
+    "owner_reported_human_six_ms": 5000,
+    "human_ratio": 2.32
+  },
+  "rows": [
+    {
+      "phase": "before",
+      "app": "Clock",
+      "trial": 1,
+      "started": "2026-11-12T16:37:18.887Z",
+      "client_ms": 3081,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1874
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1190
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.04,
+        "batch_ms": 3065,
+        "steps_ms": 3064,
+        "readback_ms": 1,
+        "service_ms": 3070,
+        "dispatch_ms": 3070,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 2698.46
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.72
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 3051.85
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.03
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 354.2
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed"
+    },
+    {
+      "phase": "before",
+      "app": "Clock",
+      "trial": 2,
+      "started": "2026-11-12T16:37:24.859Z",
+      "client_ms": 3764,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 2125
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1616
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.04,
+        "batch_ms": 3742,
+        "steps_ms": 3741,
+        "readback_ms": 1,
+        "service_ms": 3749,
+        "dispatch_ms": 3749,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 3367.67
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.88
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 3723.8
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.03
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 357.13
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed"
+    },
+    {
+      "phase": "before",
+      "app": "Clock",
+      "trial": 3,
+      "started": "2026-11-12T16:37:31.839Z",
+      "client_ms": 3075,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1892
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1159
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.05,
+        "batch_ms": 3052,
+        "steps_ms": 3051,
+        "readback_ms": 1,
+        "service_ms": 3059,
+        "dispatch_ms": 3059,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 2680.3
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.69
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 3033.99
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.03
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 354.46
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed"
+    },
+    {
+      "phase": "before",
+      "app": "Settings",
+      "trial": 1,
+      "started": "2026-11-12T16:38:06.841Z",
+      "client_ms": 3129,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1785
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1328
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.03,
+        "batch_ms": 3114,
+        "steps_ms": 3113,
+        "readback_ms": 1,
+        "service_ms": 3120,
+        "dispatch_ms": 3120,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 2744.86
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.7
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 3098.63
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.03
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 354.55
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed"
+    },
+    {
+      "phase": "before",
+      "app": "Settings",
+      "trial": 2,
+      "started": "2026-11-12T16:38:16.164Z",
+      "client_ms": 3026,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1770
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1235
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.03,
+        "batch_ms": 3007,
+        "steps_ms": 3005,
+        "readback_ms": 2,
+        "service_ms": 3012,
+        "dispatch_ms": 3012,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 2630.3
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 1.47
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 2985.44
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.04
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 356.76
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed"
+    },
+    {
+      "phase": "before",
+      "app": "Settings",
+      "trial": 3,
+      "started": "2026-11-12T16:38:23.967Z",
+      "client_ms": 4215,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 2188
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 2016
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.03,
+        "batch_ms": 4205,
+        "steps_ms": 4204,
+        "readback_ms": 0,
+        "service_ms": 4210,
+        "dispatch_ms": 4210,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 3841.01
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.53
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 4193.69
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 353.26
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed"
+    },
+    {
+      "phase": "before",
+      "app": "Notes",
+      "trial": 1,
+      "started": "2026-11-12T16:39:21.365Z",
+      "client_ms": 12614,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 7195
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 5403
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.05,
+        "batch_ms": 12599,
+        "steps_ms": 12598,
+        "readback_ms": 0,
+        "service_ms": 12606,
+        "dispatch_ms": 12606,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.02,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 6869.62
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.64
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 12486.01
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 5617.08
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": true,
+        "touch_reused": false
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed",
+      "paste": {
+        "characters": 56,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restored": true,
+        "clipboard_restore_status": "restored"
+      }
+    },
+    {
+      "phase": "before",
+      "app": "Notes",
+      "trial": 2,
+      "started": "2026-11-12T16:39:41.139Z",
+      "client_ms": 11380,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 7643
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 3722
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.03,
+        "batch_ms": 11365,
+        "steps_ms": 11365,
+        "readback_ms": 0,
+        "service_ms": 11371,
+        "dispatch_ms": 11371,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 5485.27
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.63
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 11252.54
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 5767.94
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": true,
+        "touch_reused": false
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed",
+      "paste": {
+        "characters": 56,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restored": true,
+        "clipboard_restore_status": "restored"
+      }
+    },
+    {
+      "phase": "before",
+      "app": "Notes",
+      "trial": 3,
+      "started": "2026-11-12T16:39:59.587Z",
+      "client_ms": 14805,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 10730
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 4062
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.05,
+        "batch_ms": 14793,
+        "steps_ms": 14792,
+        "readback_ms": 0,
+        "service_ms": 14798,
+        "dispatch_ms": 14798,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 5455.79
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.68
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 14680.47
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 9225.42
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": true,
+        "touch_reused": false
+      },
+      "build": "a2e7de8f74fd7995e91fe57d63f990d455240623d68cd4b47097a0fee0b1a3ed",
+      "paste": {
+        "characters": 56,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restored": true,
+        "clipboard_restore_status": "restored"
+      }
+    },
+    {
+      "phase": "candidate1_rejected",
+      "app": "Clock",
+      "trial": 1,
+      "started": "2026-11-12T17:14:14.897Z",
+      "client_ms": 5809,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 4640
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1152
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.06,
+        "batch_ms": 5792,
+        "steps_ms": 5792,
+        "readback_ms": 0,
+        "service_ms": 5797,
+        "dispatch_ms": 5797,
+        "admission": {
+          "session_queue_ms": 0.01,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "screen_capture": {
+            "count": 1,
+            "total_ms": 4280.58
+          },
+          "native_helper": {
+            "count": 4,
+            "total_ms": 0.79
+          },
+          "native_request": {
+            "count": 4,
+            "total_ms": 5675.35
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 353.9
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1144.06
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1057,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 86,
+        "subscribe_ms": 0,
+        "total_ms": 1143
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "rejection": "semantic cache lost viewport binding and caused a redundant screenshot"
+    },
+    {
+      "phase": "candidate1_rejected",
+      "app": "Clock",
+      "trial": 2,
+      "started": "2026-11-12T17:14:23.747Z",
+      "client_ms": 2913,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1728
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1168
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.08,
+        "batch_ms": 2897,
+        "steps_ms": 2896,
+        "readback_ms": 0,
+        "service_ms": 2904,
+        "dispatch_ms": 2904,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0.01
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "screen_capture": {
+            "count": 1,
+            "total_ms": 1369.23
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.55
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 2787.84
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 353.57
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1162.19
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1082,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 79,
+        "subscribe_ms": 0,
+        "total_ms": 1161
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "rejection": "semantic cache lost viewport binding and caused a redundant screenshot"
+    },
+    {
+      "phase": "candidate1_rejected",
+      "app": "Clock",
+      "trial": 3,
+      "started": "2026-11-12T17:14:29.666Z",
+      "client_ms": 3000,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 1759
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1220
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.05,
+        "batch_ms": 2981,
+        "steps_ms": 2979,
+        "readback_ms": 1,
+        "service_ms": 2986,
+        "dispatch_ms": 2986,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0.01
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "screen_capture": {
+            "count": 1,
+            "total_ms": 1395.49
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.5
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 2860.97
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.07
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 358.23
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1207.71
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1075,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 130,
+        "subscribe_ms": 1,
+        "total_ms": 1206
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "rejection": "semantic cache lost viewport binding and caused a redundant screenshot"
+    },
+    {
+      "phase": "after",
+      "app": "Clock",
+      "trial": 1,
+      "started": "2026-11-12T17:19:59.136Z",
+      "client_ms": 1535,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 361
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1155
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.07,
+        "batch_ms": 1516,
+        "steps_ms": 1516,
+        "readback_ms": 0,
+        "service_ms": 1522,
+        "dispatch_ms": 1522,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.02,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.01
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 354.34
+          },
+          "native_helper": {
+            "count": 2,
+            "total_ms": 0.64
+          },
+          "native_request": {
+            "count": 2,
+            "total_ms": 1499.21
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1145.56
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1066,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 78,
+        "subscribe_ms": 0,
+        "total_ms": 1144
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f"
+    },
+    {
+      "phase": "after",
+      "app": "Clock",
+      "trial": 2,
+      "started": "2026-11-12T17:20:03.015Z",
+      "client_ms": 1542,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 361
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1168
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.06,
+        "batch_ms": 1530,
+        "steps_ms": 1529,
+        "readback_ms": 0,
+        "service_ms": 1535,
+        "dispatch_ms": 1535,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 355.37
+          },
+          "native_helper": {
+            "count": 2,
+            "total_ms": 0.37
+          },
+          "native_request": {
+            "count": 2,
+            "total_ms": 1517.15
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1162.19
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1083,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 78,
+        "subscribe_ms": 0,
+        "total_ms": 1161
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f"
+    },
+    {
+      "phase": "after",
+      "app": "Clock",
+      "trial": 3,
+      "started": "2026-11-12T17:20:06.281Z",
+      "client_ms": 1531,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 360
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1156
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.05,
+        "batch_ms": 1516,
+        "steps_ms": 1516,
+        "readback_ms": 0,
+        "service_ms": 1523,
+        "dispatch_ms": 1523,
+        "admission": {
+          "session_queue_ms": 0.01,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 353.89
+          },
+          "native_helper": {
+            "count": 2,
+            "total_ms": 0.49
+          },
+          "native_request": {
+            "count": 2,
+            "total_ms": 1502.82
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1149.48
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1072,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 76,
+        "subscribe_ms": 0,
+        "total_ms": 1148
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f"
+    },
+    {
+      "phase": "after",
+      "app": "Settings",
+      "trial": 1,
+      "started": "2026-11-12T17:20:42.617Z",
+      "client_ms": 3763,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 360
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 3384
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.05,
+        "batch_ms": 3745,
+        "steps_ms": 3744,
+        "readback_ms": 0,
+        "service_ms": 3755,
+        "dispatch_ms": 3755,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0.01
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.01
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 352.93
+          },
+          "native_helper": {
+            "count": 2,
+            "total_ms": 0.33
+          },
+          "native_request": {
+            "count": 2,
+            "total_ms": 3730.72
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 3378.16
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1210,
+        "attempts": 2,
+        "cleanup_ms": 0,
+        "connect_ms": 84,
+        "subscribe_ms": 0,
+        "total_ms": 3377
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f"
+    },
+    {
+      "phase": "after",
+      "app": "Settings",
+      "trial": 2,
+      "started": "2026-11-12T17:20:53.121Z",
+      "client_ms": 1633,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 360
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1260
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.04,
+        "batch_ms": 1621,
+        "steps_ms": 1620,
+        "readback_ms": 0,
+        "service_ms": 1627,
+        "dispatch_ms": 1627,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 355.03
+          },
+          "native_helper": {
+            "count": 2,
+            "total_ms": 0.45
+          },
+          "native_request": {
+            "count": 2,
+            "total_ms": 1607.97
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1253.41
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1170,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 82,
+        "subscribe_ms": 0,
+        "total_ms": 1252
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f"
+    },
+    {
+      "phase": "after",
+      "app": "Settings",
+      "trial": 3,
+      "started": "2026-11-12T17:21:06.783Z",
+      "client_ms": 1596,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "tap_text",
+          "isError": false,
+          "elapsed_ms": 359
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1224
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.04,
+        "batch_ms": 1583,
+        "steps_ms": 1583,
+        "readback_ms": 0,
+        "service_ms": 1589,
+        "dispatch_ms": 1589,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 353.81
+          },
+          "native_helper": {
+            "count": 2,
+            "total_ms": 0.31
+          },
+          "native_request": {
+            "count": 2,
+            "total_ms": 1571.76
+          },
+          "accessibility": {
+            "count": 1,
+            "total_ms": 1218.31
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": false,
+        "touch_reused": true
+      },
+      "native_ax": {
+        "answer_ms": 1128,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 89,
+        "subscribe_ms": 0,
+        "total_ms": 1217
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f"
+    },
+    {
+      "phase": "after",
+      "app": "Notes",
+      "trial": 1,
+      "started": "2026-11-12T17:22:11.617Z",
+      "client_ms": 10380,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 5625
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 4740
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.04,
+        "batch_ms": 10366,
+        "steps_ms": 10365,
+        "readback_ms": 1,
+        "service_ms": 10372,
+        "dispatch_ms": 10372,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 6017.67
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.59
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 10250.85
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 4233.83
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": true,
+        "touch_reused": false
+      },
+      "native_ax": {
+        "answer_ms": 1917,
+        "attempts": 2,
+        "cleanup_ms": 0,
+        "connect_ms": 646,
+        "subscribe_ms": 0,
+        "total_ms": 4733
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f",
+      "paste": {
+        "characters": 56,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restored": true,
+        "clipboard_restore_status": "restored",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 227,
+            "clipboard_set_ms": 123,
+            "clipboard_snapshot_ms": 228,
+            "finish_ms": 0,
+            "initial_ax_ms": 1551,
+            "paste_dispatch_ms": 206,
+            "verification_ms": 1594
+          }
+        }
+      }
+    },
+    {
+      "phase": "after",
+      "app": "Notes",
+      "trial": 2,
+      "started": "2026-11-12T17:22:29.015Z",
+      "client_ms": 9879,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 7910
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 1956
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.05,
+        "batch_ms": 9866,
+        "steps_ms": 9866,
+        "readback_ms": 0,
+        "service_ms": 9872,
+        "dispatch_ms": 9872,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 5685.48
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.55
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 9752.88
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 4068.02
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": true,
+        "touch_reused": false
+      },
+      "native_ax": {
+        "answer_ms": 1607,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 342,
+        "subscribe_ms": 0,
+        "total_ms": 1949
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f",
+      "paste": {
+        "characters": 56,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "unavailable",
+        "clipboard_restored": false,
+        "clipboard_restore_status": "unavailable",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 118,
+            "clipboard_connection_reused": false,
+            "clipboard_restore_ms": 0,
+            "clipboard_set_ms": 200,
+            "clipboard_snapshot_ms": 226,
+            "finish_ms": 0,
+            "initial_ax_ms": 1554,
+            "paste_dispatch_ms": 207,
+            "verification_ms": 1458
+          }
+        }
+      }
+    },
+    {
+      "phase": "after",
+      "app": "Notes",
+      "trial": 3,
+      "started": "2026-11-12T17:22:48.621Z",
+      "client_ms": 7724,
+      "verified": true,
+      "steps": [
+        {
+          "step": 1,
+          "tool": "fill",
+          "isError": false,
+          "elapsed_ms": 5556
+        },
+        {
+          "step": 2,
+          "tool": "snapshot_ui",
+          "isError": false,
+          "elapsed_ms": 2155
+        }
+      ],
+      "timing": {
+        "queue_ms": 0.04,
+        "batch_ms": 7712,
+        "steps_ms": 7711,
+        "readback_ms": 0,
+        "service_ms": 7717,
+        "dispatch_ms": 7717,
+        "admission": {
+          "session_queue_ms": 0,
+          "device_resolution_ms": 0.01,
+          "lock_wait_ms": 0
+        },
+        "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+        "phases": {
+          "accessibility": {
+            "count": 2,
+            "total_ms": 3479.98
+          },
+          "native_helper": {
+            "count": 3,
+            "total_ms": 0.6
+          },
+          "native_request": {
+            "count": 3,
+            "total_ms": 7598.66
+          },
+          "recording_recovery": {
+            "count": 2,
+            "total_ms": 0.02
+          },
+          "input": {
+            "count": 1,
+            "total_ms": 4119.34
+          }
+        }
+      },
+      "native_input": {
+        "delivery_hold_ms": 300,
+        "idle_release_ms": 5000,
+        "keyboard_reused": true,
+        "touch_reused": false
+      },
+      "native_ax": {
+        "answer_ms": 1821,
+        "attempts": 1,
+        "cleanup_ms": 0,
+        "connect_ms": 328,
+        "subscribe_ms": 0,
+        "total_ms": 2149
+      },
+      "build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+      "source_commit": "ce97e4f",
+      "paste": {
+        "characters": 56,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restored": true,
+        "clipboard_restore_status": "restored",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 185,
+            "clipboard_set_ms": 111,
+            "clipboard_snapshot_ms": 222,
+            "finish_ms": 0,
+            "initial_ax_ms": 1566,
+            "paste_dispatch_ms": 208,
+            "verification_ms": 1521
+          }
+        }
+      }
+    }
+  ],
+  "typing_1000": {
+    "before_mode": "type_text plus final full AX checkpoint",
+    "after_mode": "explicit native_text_result; native AX exact-field proof; independent full read outside timer",
+    "before": [
+      {
+        "trial": 1,
+        "started": "2026-11-12T17:26:14.356Z",
+        "characters": 1000,
+        "client_ms": 10034,
+        "verified": true,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "unavailable",
+        "clipboard_restore_status": "unavailable",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 162,
+            "clipboard_connection_reused": false,
+            "clipboard_restore_ms": 0,
+            "clipboard_set_ms": 158,
+            "clipboard_snapshot_ms": 198,
+            "finish_ms": 0,
+            "initial_ax_ms": 1513,
+            "paste_dispatch_ms": 208,
+            "verification_ms": 6153
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "steps": [
+          {
+            "step": 1,
+            "tool": "type_text",
+            "isError": false,
+            "elapsed_ms": 8705
+          },
+          {
+            "step": 2,
+            "tool": "snapshot_ui",
+            "isError": false,
+            "elapsed_ms": 1315
+          }
+        ],
+        "timing": {
+          "queue_ms": 0.05,
+          "batch_ms": 10022,
+          "steps_ms": 10020,
+          "readback_ms": 1,
+          "service_ms": 10027,
+          "dispatch_ms": 10027,
+          "admission": {
+            "session_queue_ms": 0,
+            "device_resolution_ms": 0.01,
+            "lock_wait_ms": 0
+          },
+          "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+          "phases": {
+            "recording_recovery": {
+              "count": 2,
+              "total_ms": 0.02
+            },
+            "input": {
+              "count": 1,
+              "total_ms": 8698
+            },
+            "native_helper": {
+              "count": 2,
+              "total_ms": 0.36
+            },
+            "native_request": {
+              "count": 2,
+              "total_ms": 10008.03
+            },
+            "accessibility": {
+              "count": 1,
+              "total_ms": 1310.44
+            }
+          }
+        }
+      },
+      {
+        "trial": 2,
+        "started": "2026-11-12T17:26:31.919Z",
+        "characters": 1000,
+        "client_ms": 9150,
+        "verified": true,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restore_status": "restored",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 748,
+            "clipboard_set_ms": 290,
+            "clipboard_snapshot_ms": 336,
+            "finish_ms": 0,
+            "initial_ax_ms": 1553,
+            "paste_dispatch_ms": 207,
+            "verification_ms": 1335
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "steps": [
+          {
+            "step": 1,
+            "tool": "type_text",
+            "isError": false,
+            "elapsed_ms": 4779
+          },
+          {
+            "step": 2,
+            "tool": "snapshot_ui",
+            "isError": false,
+            "elapsed_ms": 4359
+          }
+        ],
+        "timing": {
+          "queue_ms": 0.04,
+          "batch_ms": 9139,
+          "steps_ms": 9138,
+          "readback_ms": 0,
+          "service_ms": 9144,
+          "dispatch_ms": 9144,
+          "admission": {
+            "session_queue_ms": 0,
+            "device_resolution_ms": 0.01,
+            "lock_wait_ms": 0
+          },
+          "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+          "phases": {
+            "recording_recovery": {
+              "count": 2,
+              "total_ms": 0.02
+            },
+            "input": {
+              "count": 1,
+              "total_ms": 4774.82
+            },
+            "native_helper": {
+              "count": 2,
+              "total_ms": 0.29
+            },
+            "native_request": {
+              "count": 2,
+              "total_ms": 9127.7
+            },
+            "accessibility": {
+              "count": 1,
+              "total_ms": 4353.21
+            }
+          }
+        }
+      },
+      {
+        "trial": 3,
+        "started": "2026-11-12T17:26:47.979Z",
+        "characters": 1000,
+        "client_ms": 8761,
+        "verified": true,
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restore_status": "restored",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 653,
+            "clipboard_set_ms": 125,
+            "clipboard_snapshot_ms": 405,
+            "finish_ms": 0,
+            "initial_ax_ms": 1543,
+            "paste_dispatch_ms": 208,
+            "verification_ms": 1657
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "steps": [
+          {
+            "step": 1,
+            "tool": "type_text",
+            "isError": false,
+            "elapsed_ms": 4900
+          },
+          {
+            "step": 2,
+            "tool": "snapshot_ui",
+            "isError": false,
+            "elapsed_ms": 3848
+          }
+        ],
+        "timing": {
+          "queue_ms": 0.03,
+          "batch_ms": 8749,
+          "steps_ms": 8748,
+          "readback_ms": 1,
+          "service_ms": 8754,
+          "dispatch_ms": 8754,
+          "admission": {
+            "session_queue_ms": 0,
+            "device_resolution_ms": 0.01,
+            "lock_wait_ms": 0
+          },
+          "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+          "phases": {
+            "recording_recovery": {
+              "count": 2,
+              "total_ms": 0.02
+            },
+            "input": {
+              "count": 1,
+              "total_ms": 4896.08
+            },
+            "native_helper": {
+              "count": 2,
+              "total_ms": 0.44
+            },
+            "native_request": {
+              "count": 2,
+              "total_ms": 8738.04
+            },
+            "accessibility": {
+              "count": 1,
+              "total_ms": 3842.43
+            }
+          }
+        }
+      }
+    ],
+    "after": [
+      {
+        "trial": 1,
+        "started": "2026-11-12T17:38:00.333Z",
+        "source_commit": "1ebb933",
+        "characters": 1000,
+        "client_ms": 4835,
+        "independent_check_ms": 4022,
+        "independent_verified": true,
+        "verified": true,
+        "native_text_result": {
+          "scope": "text_input",
+          "text_verified": true,
+          "characters": 1000,
+          "submit_sent": false,
+          "verification_source": "accessibility",
+          "field": {
+            "name": "Note",
+            "role": "TextField"
+          },
+          "clipboard_restored": true,
+          "clipboard_restore_status": "restored"
+        },
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restore_status": "restored",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 507,
+            "clipboard_set_ms": 236,
+            "clipboard_snapshot_ms": 301,
+            "finish_ms": 0,
+            "initial_ax_ms": 1792,
+            "paste_dispatch_ms": 207,
+            "verification_ms": 1469
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "steps": [
+          {
+            "step": 1,
+            "tool": "type_text",
+            "isError": false,
+            "elapsed_ms": 4822
+          }
+        ],
+        "timing": {
+          "queue_ms": 0.06,
+          "batch_ms": 4823,
+          "steps_ms": 4822,
+          "readback_ms": 0,
+          "service_ms": 4828,
+          "dispatch_ms": 4828,
+          "admission": {
+            "session_queue_ms": 0,
+            "device_resolution_ms": 0.01,
+            "lock_wait_ms": 0
+          },
+          "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+          "phases": {
+            "recording_recovery": {
+              "count": 2,
+              "total_ms": 0.02
+            },
+            "input": {
+              "count": 1,
+              "total_ms": 4817.95
+            },
+            "native_helper": {
+              "count": 1,
+              "total_ms": 0.17
+            },
+            "native_request": {
+              "count": 1,
+              "total_ms": 4817.77
+            }
+          }
+        }
+      },
+      {
+        "trial": 2,
+        "started": "2026-11-12T17:38:16.045Z",
+        "source_commit": "1ebb933",
+        "characters": 1000,
+        "client_ms": 4313,
+        "independent_check_ms": 1360,
+        "independent_verified": true,
+        "verified": true,
+        "native_text_result": {
+          "scope": "text_input",
+          "text_verified": true,
+          "characters": 1000,
+          "submit_sent": false,
+          "verification_source": "accessibility",
+          "field": {
+            "name": "Note",
+            "role": "TextField"
+          },
+          "clipboard_restored": true,
+          "clipboard_restore_status": "restored"
+        },
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restore_status": "restored",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 479,
+            "clipboard_set_ms": 183,
+            "clipboard_snapshot_ms": 200,
+            "finish_ms": 0,
+            "initial_ax_ms": 1421,
+            "paste_dispatch_ms": 210,
+            "verification_ms": 1491
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "steps": [
+          {
+            "step": 1,
+            "tool": "type_text",
+            "isError": false,
+            "elapsed_ms": 4298
+          }
+        ],
+        "timing": {
+          "queue_ms": 0.09,
+          "batch_ms": 4298,
+          "steps_ms": 4298,
+          "readback_ms": 0,
+          "service_ms": 4305,
+          "dispatch_ms": 4305,
+          "admission": {
+            "session_queue_ms": 0.01,
+            "device_resolution_ms": 0.02,
+            "lock_wait_ms": 0.01
+          },
+          "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+          "phases": {
+            "recording_recovery": {
+              "count": 2,
+              "total_ms": 0.03
+            },
+            "input": {
+              "count": 1,
+              "total_ms": 4291.36
+            },
+            "native_helper": {
+              "count": 1,
+              "total_ms": 0.24
+            },
+            "native_request": {
+              "count": 1,
+              "total_ms": 4291.1
+            }
+          }
+        }
+      },
+      {
+        "trial": 3,
+        "started": "2026-11-12T17:38:30.932Z",
+        "source_commit": "1ebb933",
+        "characters": 1000,
+        "client_ms": 4677,
+        "independent_check_ms": 4529,
+        "independent_verified": true,
+        "verified": true,
+        "native_text_result": {
+          "scope": "text_input",
+          "text_verified": true,
+          "characters": 1000,
+          "submit_sent": false,
+          "verification_source": "accessibility",
+          "field": {
+            "name": "Note",
+            "role": "TextField"
+          },
+          "clipboard_restored": true,
+          "clipboard_restore_status": "restored"
+        },
+        "text_verified": true,
+        "submit_sent": false,
+        "clipboard_snapshot": "complete",
+        "clipboard_restore_status": "restored",
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 509,
+            "clipboard_set_ms": 268,
+            "clipboard_snapshot_ms": 241,
+            "finish_ms": 0,
+            "initial_ax_ms": 1598,
+            "paste_dispatch_ms": 211,
+            "verification_ms": 1523
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "steps": [
+          {
+            "step": 1,
+            "tool": "type_text",
+            "isError": false,
+            "elapsed_ms": 4662
+          }
+        ],
+        "timing": {
+          "queue_ms": 0.05,
+          "batch_ms": 4662,
+          "steps_ms": 4662,
+          "readback_ms": 0,
+          "service_ms": 4669,
+          "dispatch_ms": 4669,
+          "admission": {
+            "session_queue_ms": 0,
+            "device_resolution_ms": 0.01,
+            "lock_wait_ms": 0.01
+          },
+          "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+          "phases": {
+            "recording_recovery": {
+              "count": 2,
+              "total_ms": 0.03
+            },
+            "input": {
+              "count": 1,
+              "total_ms": 4656.17
+            },
+            "native_helper": {
+              "count": 1,
+              "total_ms": 0.25
+            },
+            "native_request": {
+              "count": 1,
+              "total_ms": 4655.91
+            }
+          }
+        }
+      }
+    ]
+  },
+  "jev_api": {
+    "scope": "synthetic_clock_navigation_proposals_no_phone_input",
+    "key_ms": 23.774959000000003,
+    "rows": [
+      {
+        "model": "typesafe-ai/jev-1.14.0",
+        "trial": 1,
+        "latency_ms": 899,
+        "calls": 1,
+        "http_status": 200,
+        "proposal": {
+          "action_id": "aStopwatch",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.89,
+          "observation_id": "synthetic-clock-typesafe-ai/jev-1.14.0-1"
+        },
+        "metadata": {
+          "model_choice": "aStopwatch",
+          "confidence": 0.89,
+          "selected_probability": 0.91,
+          "confidence_present": true
+        }
+      },
+      {
+        "model": "typesafe-ai/jev-1.14.0",
+        "trial": 2,
+        "latency_ms": 596,
+        "calls": 1,
+        "http_status": 200,
+        "proposal": {
+          "action_id": "aStopwatch",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.89,
+          "observation_id": "synthetic-clock-typesafe-ai/jev-1.14.0-2"
+        },
+        "metadata": {
+          "model_choice": "aStopwatch",
+          "confidence": 0.89,
+          "selected_probability": 0.91,
+          "confidence_present": true
+        }
+      },
+      {
+        "model": "typesafe-ai/jev-1.14.0",
+        "trial": 3,
+        "latency_ms": 253,
+        "calls": 1,
+        "http_status": 200,
+        "proposal": {
+          "action_id": "aStopwatch",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.89,
+          "observation_id": "synthetic-clock-typesafe-ai/jev-1.14.0-3"
+        },
+        "metadata": {
+          "model_choice": "aStopwatch",
+          "confidence": 0.89,
+          "selected_probability": 0.91,
+          "confidence_present": true
+        }
+      },
+      {
+        "model": "typesafe-ai/jev",
+        "trial": 1,
+        "latency_ms": 292,
+        "calls": 1,
+        "http_status": 200,
+        "proposal": {
+          "action_id": "aStopwatch",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.87,
+          "observation_id": "synthetic-clock-typesafe-ai/jev-1"
+        },
+        "metadata": {
+          "model_choice": "aStopwatch",
+          "confidence": 0.87,
+          "selected_probability": 0.9,
+          "confidence_present": true
+        }
+      },
+      {
+        "model": "typesafe-ai/jev",
+        "trial": 2,
+        "latency_ms": 239,
+        "calls": 1,
+        "http_status": 200,
+        "proposal": {
+          "action_id": "aStopwatch",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.9,
+          "observation_id": "synthetic-clock-typesafe-ai/jev-2"
+        },
+        "metadata": {
+          "model_choice": "aStopwatch",
+          "confidence": 0.9,
+          "selected_probability": 0.92,
+          "confidence_present": true
+        }
+      },
+      {
+        "model": "typesafe-ai/jev",
+        "trial": 3,
+        "latency_ms": 219,
+        "calls": 1,
+        "http_status": 200,
+        "proposal": {
+          "action_id": "aStopwatch",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.9,
+          "observation_id": "synthetic-clock-typesafe-ai/jev-3"
+        },
+        "metadata": {
+          "model_choice": "aStopwatch",
+          "confidence": 0.9,
+          "selected_probability": 0.92,
+          "confidence_present": true
+        }
+      }
+    ]
+  },
+  "jev_causal_phone_speedup": "NOT_MEASURED: six synthetic model proposals; fixed physical benchmarks used local deterministic actions",
+  "catalog": {
+    "diagnostic": "fresh native stdio catalog only; no phone tool calls",
+    "total": 70,
+    "new_tools": {
+      "run_workflow": true,
+      "tap_sequence": true,
+      "run_app_action": true,
+      "choose_action": true
+    },
+    "unique": true
+  },
+  "current_chat_direct_catalog": {
+    "count": 66,
+    "new_four_names": "cached old catalog; no hot-reload claim"
+  },
+  "workflow_core": {
+    "api": "native run_code executing the unmodified compileWorkflow program",
+    "completed_calls": 4,
+    "calls": [
+      {
+        "tool": "snapshot_ui",
+        "elapsed_ms": 1754,
+        "isError": false
+      },
+      {
+        "tool": "choose_action",
+        "elapsed_ms": 1637,
+        "isError": false
+      },
+      {
+        "tool": "tap_text",
+        "elapsed_ms": 1339,
+        "isError": false
+      },
+      {
+        "tool": "snapshot_ui",
+        "elapsed_ms": 1157,
+        "isError": false
+      }
+    ],
+    "postcondition_verified": true,
+    "final_app": "Clock",
+    "external_model_calls": 0,
+    "timing": {
+      "service_ms": 5910,
+      "dispatch_ms": 5910,
+      "queue_ms": 0.05,
+      "admission": {
+        "session_queue_ms": 0,
+        "device_resolution_ms": 0.01,
+        "lock_wait_ms": 0.01
+      },
+      "phase_relation": "Nested phases include their children; do not sum parent and child totals.",
+      "phases": {
+        "accessibility": {
+          "count": 3,
+          "total_ms": 4529.54
+        },
+        "native_helper": {
+          "count": 4,
+          "total_ms": 0.83
+        },
+        "native_request": {
+          "count": 4,
+          "total_ms": 5860.8
+        },
+        "recording_recovery": {
+          "count": 2,
+          "total_ms": 0.02
+        },
+        "input": {
+          "count": 1,
+          "total_ms": 1332.17
+        }
+      }
+    }
+  },
+  "other_live_feature_qualification": {
+    "tap_sequence": "NOT_RUN: no observed numeric Key elements in current Notes view",
+    "run_app_action": "NOT_RUN: no reviewed Sing Shortcut chosen"
+  },
+  "commits": {
+    "speed": "ce97e4f",
+    "fast_typing": "1ebb933"
+  },
+  "native_build_id": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186",
+  "native_binary_sha256": "0cb5835bb02777e2ceb856ccab5fa386b02a6c3ae04d5c7216bd814c575aad3b"
+}

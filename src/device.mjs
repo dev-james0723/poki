@@ -1,8 +1,10 @@
+import {snapshotUI,viewportFromAX,axSignature} from './ax-snapshot.mjs';
 import { remoteDevices, nativeRequest } from './remote.mjs';
-import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason, timingCount, timingsSince } from './work.mjs';
+import { execute, checkWork, deadline, pause, phase, stopped, stoppingReason, work, timingCount, timingsSince } from './work.mjs';
 import { Coordination, managementTools } from './coordination.mjs';
-import { runBatch } from './batch.mjs';
+import { runBatch, finalNativeText } from './batch.mjs';
 import { runCode } from './run-code.mjs';
+import {compileWorkflow,executeTapSequence,executeAppAction,chooseAction} from './workflow-v2.mjs';
 import { flagOn } from './element-flags.mjs';
 import { mkdir, readFile, writeFile, unlink, stat } from 'node:fs/promises';
 import { join, extname, isAbsolute } from 'node:path';
@@ -81,13 +83,30 @@ const names = (device, query) => device.id === query || device.name.toLocaleLowe
 export class Devices {
   selected; requested; frame; size; seen; structureViewport; batchViewportVerified = false; elements = []; elementsAt = 0; lastInputAt = -Infinity; lastInputCompletedAt; inBatch = false;
   scales = new Map(); readCosts = new Map(); physicalNames = new Map(); backgroundDevices = new Map(); nextRef = 0;
-  constructor(coordinator = new Coordination()) { this.coordinator = coordinator; }
+  nativeTargets = new Map();
+  constructor(coordinator = new Coordination()) { this.coordinator = coordinator; this.coordinator.nativeOwners ??= new Map(); this.coordinator.axCooldown ??= new Map(); }
+  ownNativeResources(target) {
+    if (target.kind !== 'physical') return;
+    this.nativeTargets.set(target.id,target); this.coordinator.nativeOwners.set(target.id,this);
+  }
   async run(file, args, timeout = 45000, input) {
     const result = await execute(file, args, { timeout, input });
     return { stdout: result.stdout.trimEnd(), stderr: result.stderr.trimEnd() };
   }
   async cleanup(onlyDevices) {
     const result = await closePlatform(this, onlyDevices);
+    const native = [];
+    for (const [id,target] of [...this.nativeTargets]) {
+      if (onlyDevices && !onlyDevices.has(id)) continue;
+      this.nativeTargets.delete(id);
+      if (this.coordinator.nativeOwners.get(id) !== this) { native.push({device:id,skipped_new_owner:true}); continue; }
+      this.coordinator.nativeOwners.delete(id);
+      try {
+        const receipt = await work.run({signal:AbortSignal.timeout(2500),timings:[]},()=>nativeRequest(target,{op:'release_input'}));
+        native.push({device:id,released:receipt.released===true});
+      } catch (error) { native.push({device:id,released:false,error:error.message}); }
+    }
+    result.native = native;
     if (onlyDevices) for (const id of onlyDevices) this.backgroundDevices.delete(id);
     else this.backgroundDevices.clear();
     if (!onlyDevices || onlyDevices.has(this.frame?.device) || onlyDevices.has(this.structureViewport?.device)) { this.frame = undefined; this.elements = []; this.structureViewport = undefined; }
@@ -109,8 +128,16 @@ export class Devices {
   ownBackground(id, type) { if (!this.backgroundDevices.has(id)) this.backgroundDevices.set(id, new Set()); this.backgroundDevices.get(id).add(type); }
   unownBackground(id, type) { const owned = this.backgroundDevices.get(id); owned?.delete(type); if (!owned?.size) this.backgroundDevices.delete(id); }
   access(target) { this.coordinator.access(this, target); }
-  changed(target) { this.coordinator.changed(target.id); this.elements = []; this.elementsAt = 0; this.frame = undefined; this.seen = undefined; this.structureViewport = undefined; }
+  changed(target) { this.axSize = undefined; this.coordinator.changed(target.id); this.elements = []; this.elementsAt = 0; this.frame = undefined; this.seen = undefined; this.structureViewport = undefined; }
   async inventory(all = false) {
+    // A temporary acceptance controller can be pinned to one existing RemotePairing
+    // identity. Do not even enumerate unrelated USB devices or simulators in this
+    // mode; missing or mismatched remote identity fails closed with zero targets.
+    if (Object.hasOwn(process.env, 'POKI_MCP_PIN_REMOTE_UDID')) {
+      const pin = process.env.POKI_MCP_PIN_REMOTE_UDID;
+      if (!/^[0-9A-Fa-f-]{20,64}$/.test(pin)) throw new Error('Invalid pinned RemotePairing device ID.');
+      return (await remoteDevices()).filter(device => device.id === pin);
+    }
     const { stdout } = await this.run('python3', [join(root, 'native/devices.py')], 8000);
     const physical = new Map();
     for (const device of JSON.parse(stdout)) {
@@ -145,11 +172,14 @@ export class Devices {
     }));
   }
   async target(boot = true) {
+    return phase('target_resolution',async()=>{
     checkWork();
     if (this.resolved) { this.access(this.resolved); return this.resolved; }
-    const list = await this.inventory(true);
-    // A configured default spares every call a device argument when a simulator is also booted.
+    // An exact saved RemotePairing identity is already resolved. Unrelated USB
+    // discovery or simctl must not hold every remote operation behind its timeout.
     const query = this.requested ?? this.selected ?? (process.env.POKI_MCP_DEVICE || undefined);
+    const remote = await this.remoteById(query);
+    const list = remote ? [remote] : await this.inventory(true);
     let matches = query ? list.filter(d => names(d, query)) : list.filter(d => d.kind === 'physical' || d.state === 'Booted');
     if (query && !matches.length) {
       for (const d of list.filter(d => d.kind === 'physical')) {
@@ -176,9 +206,23 @@ export class Devices {
       }
     }
     return target;
+    });
   }
   // The id a device argument names, matched as target() matches it but without asking a phone for its name.
+  async remoteById(query) {
+    if (!query) return undefined;
+    if (Object.hasOwn(process.env, 'POKI_MCP_PIN_REMOTE_UDID')) {
+      const pin = process.env.POKI_MCP_PIN_REMOTE_UDID;
+      if (!/^[0-9A-Fa-f-]{20,64}$/.test(pin)) throw new Error('Invalid pinned RemotePairing device ID.');
+      if (query !== pin) return undefined;
+    }
+    const matches = (await remoteDevices()).filter(device => device.id === query);
+    if (matches.length > 1) throw new Error('Multiple remote configurations match this device ID. Resolve the duplicate configuration before use.');
+    return matches[0];
+  }
   async resolveDevice(query) {
+    const remote = await this.remoteById(query);
+    if (remote) return remote.id;
     const matches = (await this.inventory(true).catch(() => [])).filter(d => names(d, query));
     return matches.length === 1 ? matches[0].id : undefined;
   }
@@ -194,7 +238,7 @@ export class Devices {
   async bridge(request) {
     const target = await this.target();
     if (target.kind === 'simulator') return simulatorRequest(target.id, request);
-    const command = request.op === 'ax' ? { op: 'ax_tree', include_offscreen: request.include_offscreen ?? false } : request;
+    const command = request.op === 'ax' ? { op: 'ax_tree', include_offscreen: request.include_offscreen ?? false, ...(request.timeout_ms === undefined ? {} : {timeout_ms: request.timeout_ms}), ...(request.event_stream ? {event_stream:true} : {}) } : request;
     const result = await nativeRequest(target, command);
     if (request.op === 'ax') return { ...result, foreground: result.foreground_app, elements: result.elements?.map(e => ({ ...e, type: e.type ?? e.role })) };
     return result;
@@ -311,9 +355,13 @@ export class Devices {
     return { observation, source, width: frame.width, height: frame.height, units: 'points', foreground, elements: this.elements, total: count, truncated: count > this.elements.length, ...(source === 'ocr' && nativeError ? { fallback_reason: nativeError } : {}) };
   }
   // One accessibility read and no screenshot, so polling costs one native request per attempt.
-  async structure(maxAge = 0) {
+  async structure(maxAge = 0, {forInput=false} = {}) {
     const target = await this.target();
-    if (this.seen?.device === target.id && performance.now() - this.seen.at <= maxAge) return this.seen;
+    if (maxAge > 0 && this.seen?.device === target.id &&
+        this.seen.liveRead === true &&
+        this.seen.revision === this.coordinator.revision(target.id) &&
+        (!forInput || this.seen.rootVerified === true && !promptWarning(this.seen.elements)) &&
+        performance.now() - this.seen.at <= maxAge) return this.seen;
     const started = performance.now(), observedAt = new Date().toISOString(), timings = timingCount();
     const tree = await phase('accessibility', () => this.bridge({ op: 'ax', include_offscreen: false }));
     this.readCosts.set(target.id, performance.now() - started);
@@ -329,19 +377,17 @@ export class Devices {
       this.structureViewport = undefined; this.elements = []; this.elementsAt = 0; this.frame = undefined;
       await this.capture();
     }
+    const nativeViewport = viewportFromAX(tree);
+    if (nativeViewport) { this.size = { device: target.id, ...nativeViewport }; this.axSize = { ...this.size, revision: this.coordinator.revision(target.id), at: performance.now() }; }
     const viewport = this.size?.device === target.id ? this.size : await this.capture();
     const rootVerified = axRootOrientation(rawElements, viewport) === 'same';
     if (!rootVerified) this.structureViewport = undefined;
     const elements = rawElements.filter(onScreen(viewport));
     // Preserve upstream foreground-based identity, including PID-only roots.
-    const front = [tree.foreground?.pid ?? null, tree.foreground?.bundle_id ?? null];
-    const signature = JSON.stringify([front, ...elements.map(e => {
-      const box = e.frame ?? e;
-      return [e.type ?? e.role, e.label, e.text, e.value, e.focused, Boolean(e.selected), flagOn(e.enabled), box.x, box.y, box.width, box.height];
-    })]);
+    const signature = axSignature(elements, tree.foreground);
     return this.seen = {
       device: target.id, revision: this.coordinator.revision(target.id), foreground: tree.foreground,
-      elements, signature, rootVerified, at: performance.now(), startedAt: started, observedAt,
+      elements, signature, rootVerified, liveRead:true, at: performance.now(), startedAt: started, observedAt,
       structure_started_at: observedAt, structure_completed_at: new Date().toISOString(),
       ...(served ? { served } : {}),
     };
@@ -350,6 +396,7 @@ export class Devices {
   // current orientation, so it keeps taking a fresh frame.
   async screenSize() {
     const target = await this.target();
+    if (this.axSize?.device === target.id && this.axSize.revision === this.coordinator.revision(target.id) && performance.now() - this.axSize.at < 500) return this.axSize;
     if (target.kind === 'simulator' && this.size?.device === target.id) return this.size;
     // A batch may retain only a viewport that was captured or validated
     // during THIS batch, not one inherited from a previous AX-only action.
@@ -357,6 +404,14 @@ export class Devices {
     const result = await this.viewport();
     if (this.inBatch) this.batchViewportVerified = true;
     return result;
+  }
+  bindSemanticViewport() {
+    const seen=this.seen, age=seen?performance.now()-seen.at:Infinity;
+    if(!seen?.liveRead || !seen.rootVerified || age<0 || age>200 ||
+       seen.device!==this.resolved?.id || seen.revision!==this.coordinator.revision(seen.device) ||
+       promptWarning(seen.elements))return;
+    const viewport=viewportFromAX({elements:seen.elements});
+    if(viewport)this.axSize={device:seen.device,...viewport,revision:seen.revision,at:seen.at};
   }
   // Reading the result back saves the caller a round trip to look. The action has already happened,
   // so a failed read only loses the report; a stop request still surfaces as a stop.
@@ -368,8 +423,9 @@ export class Devices {
   // for the same screen. The batch still ends with one read of the screen.
   checksStep() {
     if (!this.inBatch) return true;
-    const { next, stopOnError } = this.batchStep ?? {};
-    return stopOnError !== false && !geometricTouches.has(next?.tool);
+    const { next, nextIsFinal, stopOnError } = this.batchStep ?? {};
+    return !(nextIsFinal && next?.tool === 'snapshot_ui') &&
+      stopOnError !== false && !geometricTouches.has(next?.tool);
   }
   observationBudget(target) {
     const cost = this.readCosts.get(target.id);
@@ -382,10 +438,15 @@ export class Devices {
   async readback(before, options = {}) {
     try {
       const target = await this.target();
+      const fastRemote = target.remote && options.once === true;
+      const preferOcr = fastRemote && (this.coordinator.axCooldown.get(target.id) ?? 0) > performance.now();
+      const readOptions = fastRemote ? { ...options, axBudgetMs: Math.min(options.axBudgetMs ?? 3500, 3500), preferOcr } : options;
       const confirmation = this.confirmation();
       const { signature, screen, structuredObservation } = await deadline(
-        this.observationBudget(target) + this.confirmationBudget(before) + (options.structured ? 3000 : 0),
-        () => readScreen(this, { ...options, before, confirmation }));
+        fastRemote ? 11500 : this.observationBudget(target) + this.confirmationBudget(before) + (options.structured ? 3000 : 0),
+        () => readScreen(this, { ...readOptions, before, confirmation }));
+      if (fastRemote && screen.ax_timeout === true) this.coordinator.axCooldown.set(target.id, performance.now() + 20000);
+      else if (fastRemote && screen.source === 'accessibility') this.coordinator.axCooldown.delete(target.id);
       const reusable = structuredObservation && this.lastInputCompletedAt;
       const receiptId = reusable ? randomUUID() : undefined;
       return { screen, ...screenChange(before, signature),
@@ -402,7 +463,12 @@ export class Devices {
   }
   // The action does not depend on this read, so a slow read only costs the comparison.
   async readBefore(maxAge) {
-    try { return await deadline(readbackMs, () => this.structure(maxAge)); } catch { checkWork(); }
+    try {
+      const target = await this.target();
+      // This pre-read is optional evidence for post-input comparison, not a
+      // license to keep a tap waiting behind a 25-second RemotePairing AX call.
+      return await deadline(target.remote ? 4000 : readbackMs, () => this.structure(maxAge));
+    } catch { checkWork(); }
   }
   // A batch step reports only whether its touch changed the screen; the batch ends with the screen itself.
   async changedSince(before) {
@@ -438,8 +504,15 @@ export class Devices {
         capture_completed_at: frame.capture_completed_at } : {}),
     };
   }
-  async input(request) {
+  async input(request, { beforeDispatch } = {}) {
     const target = await this.target();
+    if (this.expectedApp) {
+      const seen = await this.structure(500);
+      if (![seen.foreground?.bundle_id,seen.foreground?.name].includes(this.expectedApp)) {
+        return {isError:true,outcome:'not_sent',sent:false,stop_reason:'error',error:'Foreground changed or is unreadable. Nothing was dispatched.'};
+      }
+    }
+    this.ownNativeResources(target);
     const frame = 'x' in request || 'x1' in request || request.op === 'pinch' || request.op === 'draw_strokes' ? await this.screenSize() : undefined;
     const command = { ...request };
     if ('x' in command) {
@@ -458,6 +531,10 @@ export class Devices {
       command.start_distance *= 65535 / (frame.width - 1); command.end_distance *= 65535 / (frame.width - 1);
     }
     await phase('recording_recovery', () => prepareRecordingInput(this, target));
+    if (beforeDispatch) {
+      const guard=await phase('sequence_guard',beforeDispatch);
+      if(guard?.sent===false)return guard;
+    }
     // The last screen read before the first input of a call is the one its effect is measured against.
     if (this.seen?.device === target.id) this.beforeInput ??= this.seen;
     this.changed(target);
@@ -477,20 +554,22 @@ export class Devices {
     const def = definitions.find(d => d[0] === name);
     if (!def) throw new Error(`Unknown tool: ${name}`);
     const args = def[2].parse(original);
+    if(args.native_text_result && (!['fill','type_text'].includes(name) || args.submit!==false || !args.expected_app || args.return_observation || args.post_action_ocr || this.inBatch&&this.batchStep?.next))throw Error('native_text_result requires non-submitting text with expected_app and no whole-screen observation; it must be final within a batch. Nothing was dispatched.');
     // Invalidate a previous call's AX-only viewport BEFORE dispatching any
     // tool. In particular CUA look/do and batch_commands bypass the default
     // input branch; without this they could reuse portrait size after rotation.
     // The default input branch may renew it only after its own fresh AX read.
     const previousViewport = this.structureViewport;
-    this.structureViewport = undefined;
-    const previous = this.requested, previousResolved = this.resolved;
+    this.structureViewport = undefined; this.axSize = undefined;
+    const previous = this.requested, previousResolved = this.resolved, previousExpectedApp = this.expectedApp;
+    this.expectedApp = args.expected_app ?? previousExpectedApp;
     // Steps of one batch share a lookup, which runs a Python process and simctl each time.
     const sharesTarget = this.inBatch && args.device === undefined;
     if (!sharesTarget) this.resolved = undefined;
     this.requested = args.device ?? previous;
     try {
       checkWork();
-      if (name !== 'poki_mcp_status' && name !== 'stop_recording') await requireCurrentCode();
+      if (name !== 'poki_mcp_status' && name !== 'stop_recording') await phase('code_freshness',requireCurrentCode);
       if (approvedTools.has(name)) await this.target();
       // Says on the result who let it run, so an agent can tell a gated call from an ordinary one.
       const approval = !approvedTools.has(name) ? undefined : process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? { mode: 'operator-preapproved', approved_by: 'operator' } : { mode: 'ask-human', approved_by: 'human' };
@@ -507,7 +586,7 @@ export class Devices {
       }
       switch (name) {
         case 'acquire_device': return text(await this.coordinator.acquire(this, await this.target(false), args.ttl_seconds ?? 120));
-        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), registered_device_tools: 53, observation_tools: 1, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
+        case 'poki_mcp_status': return text({ update: await updateNotice(), implementation: `Poki MCP ${version}`, ...await buildInfo(), jev_policy: process.env.POKI_JEV_DISABLED === '1' ? 'disabled' : 'opt-in', registered_device_tools: 53, observation_tools: 3, management_tools: 4, transport_tools: 2, total_tools: definitions.length, devices: (await this.inventory()).length, selected: this.selected ?? null, approval_mode: process.env.POKI_MCP_APPROVAL_MODE === 'allow' ? 'operator-preapproved' : 'ask-human', approval_covers: [...approvedTools], approval_scope: 'Only the tools in approval_covers ask for approval. Taps, typing and other input inside apps, including a delete confirmed with a tap, are not gated.' });
         case 'list_devices': {
           const devices = await this.describeDevices(args.include_all_simulators);
           return text({ devices, ...(devices.some(d => d.kind === 'physical') ? {} : { notice: noUsbDevice }), ...(args.include_all_simulators ? { simulator_models: await simulatorModels() } : {}) });
@@ -558,6 +637,8 @@ export class Devices {
           const data = extension === '.png' ? frame.original : await sharp(frame.original).jpeg({quality:95}).toBuffer();
           await writeFile(path,data,{flag:args.overwrite?'w':'wx',mode:0o600}); return text({path,bytes:data.length});
         }
+        case 'observe_fast': return text((await this.readback(undefined,{ once:true })).screen);
+        case 'snapshot_ui': return text(await snapshotUI(this,args));
         case 'list_elements': return text(await this.recognize(args));
         case 'observe_device': {
           const result = await this.recognize(args), frame = this.frame;
@@ -611,6 +692,14 @@ export class Devices {
         case 'look': return await cua.look(this, args);
         case 'do': return await cua.act(this, args);
         case 'run_code': return await runCode(this, args);
+        case 'run_workflow': return await runCode(this, compileWorkflow(args));
+        case 'choose_action': return text(await chooseAction(this,args));
+        case 'tap_sequence':
+        case 'run_app_action': {
+          const result=await (name==='tap_sequence'?executeTapSequence(this,args):executeAppAction(this,args));
+          if(result.content)return result;
+          return {...text(result),...(result.isError?{isError:true,_meta:{stop_reason:result.stop_reason??(result.outcome==='unknown'?'unknown':'error')}}:{})};
+        }
         default: {
           const verify = args.verify !== false;
           // A batch step that asks for verification (verify: true) is compared even when checksStep would skip it.
@@ -619,7 +708,9 @@ export class Devices {
           // The AX-only binding is valid only when this same call has just
           // performed a fresh root-verified AX read. Unverified or first-step
           // batch gestures fall back to image capture for coordinate sizing.
-          const before = looks || touches
+          const locatesTarget = ['tap_text', 'fill', 'handle_alert'].includes(name);
+          const skipSpeculativeRead = locatesTarget && (await this.target()).remote;
+          const before = (looks || touches) && !skipSpeculativeRead
             ? await this.readBefore(previousViewport ? 0 : this.inBatch ? this.reuseMs() : 0)
             : undefined;
           if (previousViewport && before?.rootVerified === true &&
@@ -635,7 +726,9 @@ export class Devices {
           const delivered = result.sent === true && !result.isError && !result.stopped;
           // A target that had to be waited for is compared with the screen it was found on, not the one before the wait.
           const sentTo = this.beforeInput ?? before, signature = sentTo?.elements.length ? sentTo.signature : undefined;
-          if (looks && delivered) result = { ...result, ...await this.readback(signature, { structured: args.return_observation === true, structuredVisual: args.post_action_ocr === true }) };
+          const nativeText=!this.inBatch&&args.native_text_result ? await finalNativeText(this,{tool:name,arguments:args},text(result)) : undefined;
+          if(nativeText)result={...result,native_text_result:nativeText};
+          else if (looks && delivered) result = { ...result, ...await this.readback(signature, { structured: args.return_observation === true, structuredVisual: args.post_action_ocr === true }) };
           else if (touches && delivered && signature !== undefined) result = { ...result, ...await this.changedSince(signature) };
           // Which list the scroll moved, from the reads on either side of it.
           if (name === 'scroll' && looks && delivered && sentTo?.elements.length && this.seen?.elements.length && this.seen.startedAt > this.lastInputAt) result = { ...result, moved: whatMoved(sentTo.elements, this.seen.elements) };
@@ -653,6 +746,6 @@ export class Devices {
           return { ...text(result), ...(unchanged || result.screen_change ? { _meta: { ...(unchanged ? { stop_reason: 'no_change' } : {}), ...(result.screen_change ? { verdict: result.screen_change } : {}) } } : {}) };
         }
       }
-    } finally { this.requested=previous; if (!sharesTarget) this.resolved=previousResolved; }
+    } finally { this.expectedApp=previousExpectedApp; this.requested=previous; if (!sharesTarget) this.resolved=previousResolved; }
   }
 }

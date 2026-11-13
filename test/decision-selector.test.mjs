@@ -1,0 +1,34 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+const load=async()=>{let m;try{m=await import('../src/decision-selector.mjs')}catch(e){if(e.code!=='ERR_MODULE_NOT_FOUND')throw e}assert.ok(m,'decision selector must exist');return {...m,selectAction:(input,options={})=>m.selectAction(input,{expectedDevice:uid,...options})}};
+const uid='fixture-phone';
+test('a caller must bind the device explicitly instead of relying on a personal default',async()=>{
+  const m=await import('../src/decision-selector.mjs');
+  const result=await m.selectAction({...sample(),exactLabel:'BKK Suvarnabhumi'});
+  assert.equal(result.action_id,'STOP');
+});
+function sample(){return {goal:'Choose Suvarnabhumi airport',expectedApp:'Trip.com',snapshot:{observation:{id:'obs-test',device:uid,revision:4,structure_completed_at:new Date().toISOString()},source:'accessibility',foreground:{name:'Trip.com'},elements:[{object_id:'bkk',label:'BKK Suvarnabhumi',role:'Button',enabled:true},{object_id:'dmk',label:'DMK Don Mueang',role:'Button',enabled:true}]},actions:[{id:'a1',object_id:'bkk',label:'BKK Suvarnabhumi',kind:'tap_text'},{id:'a2',object_id:'dmk',label:'DMK Don Mueang',kind:'tap_text'}]};}
+const grant=async x=>({allowed:true,provider:x.provider,snapshot_id:x.snapshotId,expires_at:Date.now()+5000});
+test('exact observed target uses no model or transport',async()=>{const m=await load();let calls=0;const r=await m.selectAction({...sample(),exactLabel:'BKK Suvarnabhumi'},{request:async()=>{calls++}});assert.equal(r.action_id,'a1');assert.equal(r.source,'local');assert.equal(calls,0);assert.equal(r.execution_authorized,false);});
+test('ambiguous local selection stops for observation rather than inventing a target',async()=>{const m=await load();const r=await m.selectAction(sample());assert.equal(r.action_id,'REOBSERVE');});
+test('external provider is disabled without an owner authorization callback',async()=>{const m=await load();let calls=0;const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'public',request:async()=>{calls++}});assert.equal(r.action_id,'STOP');assert.equal(calls,0);});
+test('private snapshots are never transmitted by this selector',async()=>{const m=await load();let calls=0;const r=await m.selectAction(sample(),{provider:'decisions',model:'gpt-6-luna',dataClass:'private',authorize:grant,request:async()=>{calls++}});assert.equal(r.action_id,'STOP');assert.equal(calls,0);});
+test('OpenAI adapter emits named choice arrays and parses a typed answer',async()=>{const m=await load();let req;const r=await m.selectAction(sample(),{provider:'decisions',model:'gpt-6-luna',dataClass:'controlled_test',authorize:grant,request:async x=>{req=x;return {answers:[{type:'choice',name:'next_action',choice:'a1',confidence:.95}]}}});assert.equal(req.url,'https://api.openai.com/v1/decisions');assert.equal(req.body.questions[0].name,'next_action');assert.ok(req.body.questions[0].choices.some(c=>c.value==='STOP'));assert.equal(r.action_id,'a1');assert.equal(r.execution_authorized,false);});
+test('Jev adapter emits criteria map and parses named answer',async()=>{const m=await load();let req;const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'controlled_test',authorize:grant,request:async x=>{req=x;return {answers:{next_action:{type:'choice',choice:'a2',confidence:.95}}}}});assert.equal(req.url,'https://api.typesafe.ai/v1/systemone');assert.ok(req.body.questions.next_action.criteria.REOBSERVE);assert.equal(r.action_id,'a2');});
+test('model cannot return arbitrary commands or a non-catalog action',async()=>{const m=await load();const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'controlled_test',authorize:grant,request:async()=>({answers:{next_action:{type:'choice',choice:'tap 0 0; send',confidence:1}}})});assert.equal(r.action_id,'STOP');});
+test('stale source refuses without a model request',async()=>{const m=await load();let n=0;const s=sample();s.snapshot.observation.structure_completed_at='2000-01-01T00:00:00Z';const r=await m.selectAction(s,{provider:'jev',model:'jev-latest',dataClass:'controlled_test',authorize:grant,request:async()=>{n++}});assert.equal(r.action_id,'REOBSERVE');assert.equal(n,0);});
+test('revision changed during decision invalidates its answer',async()=>{const m=await load();let rev=4;const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'controlled_test',authorize:grant,currentRevision:()=>rev,request:async()=>{rev=5;return {answers:{next_action:{type:'choice',choice:'a1',confidence:.99}}}}});assert.equal(r.action_id,'REOBSERVE');});
+test('low confidence is observable but is not treated as execution authority',async()=>{const m=await load();const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'controlled_test',authorize:grant,request:async()=>({answers:{next_action:{type:'choice',choice:'a1',confidence:.5}}})});assert.equal(r.action_id,'REOBSERVE');assert.equal(r.confidence,.5);assert.equal(r.execution_authorized,false);});
+test('model timeout aborts and never retries',async()=>{const m=await load();let calls=0,sig;const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'controlled_test',authorize:grant,timeoutMs:20,request:async x=>{calls++;sig=x.signal;return new Promise(()=>{})}});assert.equal(r.action_id,'REOBSERVE');assert.equal(calls,1);assert.equal(sig.aborted,true);});
+test('wrong device, foreground and invented elements cannot be selected',async()=>{const m=await load();for(const mutate of [s=>s.snapshot.observation.device='wrong',s=>s.snapshot.foreground.name='Messages',s=>s.actions[0].object_id='invented']){const s=sample();mutate(s);const r=await m.selectAction({...s,exactLabel:'BKK Suvarnabhumi'});assert.notEqual(r.action_id,'a1');}});
+test('cancellation during external authorization sends no model request',async()=>{
+ const m=await load(),controller=new AbortController();let calls=0;
+ const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'controlled_test',signal:controller.signal,
+  authorize:async x=>{controller.abort();return grant(x);},request:async()=>{calls++;}});
+ assert.equal(r.action_id,'STOP');assert.equal(r.reason,'decision_cancelled');assert.equal(calls,0);
+});
+test('caller cancellation aborts an in-flight model request without retry',async()=>{
+ const m=await load(),controller=new AbortController();let calls=0,requestSignal;
+ const r=await m.selectAction(sample(),{provider:'jev',model:'jev-latest',dataClass:'controlled_test',authorize:grant,signal:controller.signal,
+  request:async x=>{calls++;requestSignal=x.signal;queueMicrotask(()=>controller.abort());return new Promise(()=>{});}});
+ assert.equal(r.action_id,'REOBSERVE');assert.equal(calls,1);assert.equal(requestSignal.aborted,true);
+});

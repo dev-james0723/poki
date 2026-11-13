@@ -1,0 +1,530 @@
+{
+  "protocol": "Google Translate language picker, reset excluded; one downward page then full live AX; require Bambara and Basque.",
+  "trials": {
+    "qos_control": [
+      {
+        "trial": 1,
+        "caller_ms": 12854,
+        "phone_total_ms": 6356,
+        "dispatch_ms": 4810,
+        "success": false,
+        "phases": {
+          "accessibility": {
+            "count": 5,
+            "total_ms": 7272.08
+          },
+          "native_helper": {
+            "count": 10,
+            "total_ms": 5.34
+          },
+          "native_request": {
+            "count": 10,
+            "total_ms": 12624.42
+          },
+          "recording_recovery": {
+            "count": 6,
+            "total_ms": 0.29
+          },
+          "input": {
+            "count": 3,
+            "total_ms": 3338.58
+          },
+          "screen_capture": {
+            "count": 1,
+            "total_ms": 2059.6
+          }
+        },
+        "calls": []
+      },
+      {
+        "trial": 2,
+        "caller_ms": 8955,
+        "phone_total_ms": 5329,
+        "dispatch_ms": 3967,
+        "success": true,
+        "phases": {
+          "recording_recovery": {
+            "count": 6,
+            "total_ms": 0.14
+          },
+          "input": {
+            "count": 3,
+            "total_ms": 1874.39
+          },
+          "native_helper": {
+            "count": 8,
+            "total_ms": 3.95
+          },
+          "native_request": {
+            "count": 8,
+            "total_ms": 8774.91
+          },
+          "accessibility": {
+            "count": 4,
+            "total_ms": 5638.06
+          },
+          "screen_capture": {
+            "count": 1,
+            "total_ms": 1299.75
+          }
+        },
+        "calls": []
+      },
+      {
+        "trial": 3,
+        "caller_ms": 9643,
+        "phone_total_ms": 5589,
+        "dispatch_ms": 4072,
+        "success": true,
+        "phases": {
+          "recording_recovery": {
+            "count": 6,
+            "total_ms": 0.1
+          },
+          "input": {
+            "count": 3,
+            "total_ms": 1873.28
+          },
+          "native_helper": {
+            "count": 8,
+            "total_ms": 4.14
+          },
+          "native_request": {
+            "count": 8,
+            "total_ms": 9471.12
+          },
+          "accessibility": {
+            "count": 4,
+            "total_ms": 6336.15
+          },
+          "screen_capture": {
+            "count": 1,
+            "total_ms": 1303.39
+          }
+        },
+        "calls": []
+      }
+    ],
+    "after": [
+      {
+        "trial": 1,
+        "caller_ms": 9233,
+        "phone_total_ms": 2552,
+        "dispatch_ms": 1181,
+        "success": true,
+        "phases": {
+          "code_freshness": {
+            "count": 6,
+            "total_ms": 105.18
+          },
+          "target_resolution": {
+            "count": 26,
+            "total_ms": 2.22
+          },
+          "accessibility": {
+            "count": 4,
+            "total_ms": 5581.03
+          },
+          "native_helper": {
+            "count": 7,
+            "total_ms": 3.66
+          },
+          "native_request": {
+            "count": 7,
+            "total_ms": 9054.14
+          },
+          "native_identity": {
+            "count": 7,
+            "total_ms": 2.05
+          },
+          "native_response": {
+            "count": 7,
+            "total_ms": 9048.92
+          },
+          "native_close": {
+            "count": 7,
+            "total_ms": 2.32
+          },
+          "recording_recovery": {
+            "count": 6,
+            "total_ms": 0.39
+          },
+          "input": {
+            "count": 3,
+            "total_ms": 3477.58
+          }
+        },
+        "calls": [
+          {
+            "tool": "tap_text",
+            "elapsed_ms": 3730,
+            "timing": {
+              "source_freshness_ms": 5.11,
+              "target_resolution_ms": 0.56,
+              "transport": {
+                "helper_prepare_ms": 1.37,
+                "identity_wait_ms": 1.06,
+                "response_wait_ms": 3714.97,
+                "close_wait_ms": 0.86
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "tap_text",
+            "elapsed_ms": 1619,
+            "timing": {
+              "source_freshness_ms": 19.23,
+              "target_resolution_ms": 0.47,
+              "transport": {
+                "helper_prepare_ms": 0.85,
+                "identity_wait_ms": 0.32,
+                "response_wait_ms": 1595.01,
+                "close_wait_ms": 0.68
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "snapshot_ui",
+            "elapsed_ms": 1263,
+            "timing": {
+              "source_freshness_ms": 21.36,
+              "target_resolution_ms": 0.35,
+              "transport": {
+                "helper_prepare_ms": 0.36,
+                "identity_wait_ms": 0.19,
+                "response_wait_ms": 1237.62,
+                "close_wait_ms": 0.28
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "scroll",
+            "elapsed_ms": 1178,
+            "timing": {
+              "source_freshness_ms": 18.63,
+              "target_resolution_ms": 0.47,
+              "transport": {
+                "helper_prepare_ms": 0.35,
+                "identity_wait_ms": 0.19,
+                "response_wait_ms": 1156.2,
+                "close_wait_ms": 0.31
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "snapshot_ui",
+            "elapsed_ms": 1370,
+            "timing": {
+              "source_freshness_ms": 21.13,
+              "target_resolution_ms": 0.37,
+              "transport": {
+                "helper_prepare_ms": 0.73,
+                "identity_wait_ms": 0.29,
+                "response_wait_ms": 1345.12,
+                "close_wait_ms": 0.19
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          }
+        ]
+      },
+      {
+        "trial": 2,
+        "caller_ms": 10416,
+        "phone_total_ms": 3092,
+        "dispatch_ms": 1177,
+        "success": false,
+        "phases": {
+          "code_freshness": {
+            "count": 6,
+            "total_ms": 88.93
+          },
+          "target_resolution": {
+            "count": 26,
+            "total_ms": 2.11
+          },
+          "accessibility": {
+            "count": 4,
+            "total_ms": 7372.31
+          },
+          "native_helper": {
+            "count": 7,
+            "total_ms": 5.25
+          },
+          "native_request": {
+            "count": 7,
+            "total_ms": 10269.14
+          },
+          "native_identity": {
+            "count": 7,
+            "total_ms": 2.13
+          },
+          "native_response": {
+            "count": 7,
+            "total_ms": 10263.37
+          },
+          "native_close": {
+            "count": 7,
+            "total_ms": 2.21
+          },
+          "recording_recovery": {
+            "count": 6,
+            "total_ms": 0.1
+          },
+          "input": {
+            "count": 3,
+            "total_ms": 2902.69
+          }
+        },
+        "calls": [
+          {
+            "tool": "tap_text",
+            "elapsed_ms": 3310,
+            "timing": {
+              "source_freshness_ms": 5.07,
+              "target_resolution_ms": 0.67,
+              "transport": {
+                "helper_prepare_ms": 0.92,
+                "identity_wait_ms": 0.31,
+                "response_wait_ms": 3300.28,
+                "close_wait_ms": 0.55
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "tap_text",
+            "elapsed_ms": 2131,
+            "timing": {
+              "source_freshness_ms": 16.95,
+              "target_resolution_ms": 0.41,
+              "transport": {
+                "helper_prepare_ms": 2.67,
+                "identity_wait_ms": 1.27,
+                "response_wait_ms": 2106.45,
+                "close_wait_ms": 0.93
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "snapshot_ui",
+            "elapsed_ms": 1823,
+            "timing": {
+              "source_freshness_ms": 14.65,
+              "target_resolution_ms": 0.42,
+              "transport": {
+                "helper_prepare_ms": 0.78,
+                "identity_wait_ms": 0.17,
+                "response_wait_ms": 1804,
+                "close_wait_ms": 0.2
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "scroll",
+            "elapsed_ms": 1176,
+            "timing": {
+              "source_freshness_ms": 14.65,
+              "target_resolution_ms": 0.29,
+              "transport": {
+                "helper_prepare_ms": 0.56,
+                "identity_wait_ms": 0.24,
+                "response_wait_ms": 1157.21,
+                "close_wait_ms": 0.27
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "snapshot_ui",
+            "elapsed_ms": 1915,
+            "timing": {
+              "source_freshness_ms": 17.07,
+              "target_resolution_ms": 0.32,
+              "transport": {
+                "helper_prepare_ms": 0.32,
+                "identity_wait_ms": 0.14,
+                "response_wait_ms": 1895.43,
+                "close_wait_ms": 0.26
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          }
+        ]
+      },
+      {
+        "trial": 3,
+        "caller_ms": 6828,
+        "phone_total_ms": 2601,
+        "dispatch_ms": 1184,
+        "success": false,
+        "phases": {
+          "code_freshness": {
+            "count": 6,
+            "total_ms": 98
+          },
+          "target_resolution": {
+            "count": 25,
+            "total_ms": 1.63
+          },
+          "recording_recovery": {
+            "count": 6,
+            "total_ms": 0.08
+          },
+          "input": {
+            "count": 3,
+            "total_ms": 1869.92
+          },
+          "native_helper": {
+            "count": 6,
+            "total_ms": 2.1
+          },
+          "native_request": {
+            "count": 6,
+            "total_ms": 6687.24
+          },
+          "native_identity": {
+            "count": 6,
+            "total_ms": 0.98
+          },
+          "native_response": {
+            "count": 6,
+            "total_ms": 6684.96
+          },
+          "native_close": {
+            "count": 6,
+            "total_ms": 1
+          },
+          "accessibility": {
+            "count": 3,
+            "total_ms": 4819.76
+          }
+        },
+        "calls": [
+          {
+            "tool": "tap_text",
+            "elapsed_ms": 360,
+            "timing": {
+              "source_freshness_ms": 4.9,
+              "target_resolution_ms": 0.16,
+              "transport": {
+                "helper_prepare_ms": 0.14,
+                "identity_wait_ms": 0.21,
+                "response_wait_ms": 353.42,
+                "close_wait_ms": 0.15
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "tap_text",
+            "elapsed_ms": 1925,
+            "timing": {
+              "source_freshness_ms": 20.44,
+              "target_resolution_ms": 0.39,
+              "transport": {
+                "helper_prepare_ms": 0.69,
+                "identity_wait_ms": 0.28,
+                "response_wait_ms": 1901,
+                "close_wait_ms": 0.34
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "snapshot_ui",
+            "elapsed_ms": 1893,
+            "timing": {
+              "source_freshness_ms": 16.55,
+              "target_resolution_ms": 0.37,
+              "transport": {
+                "helper_prepare_ms": 0.32,
+                "identity_wait_ms": 0.13,
+                "response_wait_ms": 1873.59,
+                "close_wait_ms": 0.23
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "scroll",
+            "elapsed_ms": 1183,
+            "timing": {
+              "source_freshness_ms": 20.06,
+              "target_resolution_ms": 0.43,
+              "transport": {
+                "helper_prepare_ms": 0.59,
+                "identity_wait_ms": 0.15,
+                "response_wait_ms": 1159.29,
+                "close_wait_ms": 0.14
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          },
+          {
+            "tool": "snapshot_ui",
+            "elapsed_ms": 1416,
+            "timing": {
+              "source_freshness_ms": 16.64,
+              "target_resolution_ms": 0.28,
+              "transport": {
+                "helper_prepare_ms": 0.36,
+                "identity_wait_ms": 0.21,
+                "response_wait_ms": 1397.66,
+                "close_wait_ms": 0.14
+              },
+              "phase_relation": "Nested phases include their children; do not sum parent and child totals."
+            },
+            "isError": false
+          }
+        ]
+      }
+    ],
+    "before": [
+      {
+        "trial": 1,
+        "phone_total_ms": 32325,
+        "dispatch_ms": 10221,
+        "success": true
+      },
+      {
+        "trial": 2,
+        "phone_total_ms": 15641,
+        "dispatch_ms": 13469,
+        "success": false
+      },
+      {
+        "trial": 3,
+        "phone_total_ms": 8436,
+        "dispatch_ms": 6098,
+        "success": true
+      }
+    ]
+  },
+  "disposition": "New semantic-scroll implementation withdrawn; endpoint qualification failed.",
+  "limitations": [
+    "Only 1/3 after trials met the fixed endpoint, compared with 2/3 before and 2/3 QoS control. No reliability or human-speed acceptance.",
+    "QoS control included service restart. Same-process readonly priority control did not reproduce the earlier multi-second outlier.",
+    "Freshness and target-resolution overhead is tens of milliseconds in these after trials; socket identity/close overhead is sub-millisecond per call. Most wait is helper response, including native AX/input. These runs do not explain earlier ten-second outliers."
+  ]
+}

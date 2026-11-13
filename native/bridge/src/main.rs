@@ -7,6 +7,7 @@ mod installation;
 mod pasteboard;
 mod remote;
 mod stream;
+mod session_input;
 
 use gesture::{Drag, Pinch, Strokes, pinch_contacts};
 use idevice::{
@@ -38,6 +39,8 @@ struct InputMedia {
     client: idevice::core_device::DisplayServiceClient<Box<dyn ReadWrite>>,
     receivers: tokio::task::JoinSet<()>,
     ready_at: tokio::time::Instant,
+    touch: Option<Touch>,
+    keyboard: Option<Keyboard>,
 }
 
 impl InputMedia {
@@ -45,7 +48,7 @@ impl InputMedia {
         adapter: &mut idevice::tcp::handle::AdapterHandle,
         rsd: &mut RsdHandshake,
     ) -> Result<Self> {
-        let stream = stream::start_screen_media_stream(adapter, rsd, 1)
+        let stream = stream::start_input_media_stream(adapter, rsd, 1)
             .await
             .map_err(|e| {
                 if e.is::<NoDisplayService>() {
@@ -62,14 +65,18 @@ impl InputMedia {
             })?;
         let mut receivers = tokio::task::JoinSet::new();
         // The transport queues UDP without a bound. Consume packets while holding the input gate open.
-        for socket in [stream.audio_udp, stream.video_udp] {
+        for socket in stream.audio_udp.into_iter().chain(std::iter::once(stream.video_udp)) {
             receivers.spawn(async move { while socket.recv().await.is_ok() {} });
         }
         trace("input media connected");
         Ok(Self {
             client: stream.client,
             receivers,
-            ready_at: tokio::time::Instant::now() + Duration::from_millis(1000),
+            // Upstream pymobiledevice3 #2036 requires 500ms on slower phones;
+            // never remove this asynchronous HID authentication settle period.
+            ready_at: tokio::time::Instant::now() + Duration::from_millis(500),
+            touch: None,
+            keyboard: None,
         })
     }
 }
@@ -91,10 +98,18 @@ fn not_sent_error(
 
 async fn close_input(media: &mut Option<InputMedia>) -> Result<()> {
     if let Some(mut media) = media.take() {
+        let keyboard_result: Result<()> = async {
+            if let Some(mut keyboard) = media.keyboard.take() {
+                tokio::time::timeout(Duration::from_secs(2), keyboard.close()).await??;
+            }
+            Ok(())
+        }.await;
+        media.touch = None;
         let result =
             tokio::time::timeout(Duration::from_secs(2), media.client.stop_media_stream()).await;
         media.receivers.shutdown().await;
         trace("input media closed");
+        keyboard_result?;
         result??;
     }
     Ok(())
@@ -126,6 +141,13 @@ impl Keyboard {
 }
 
 #[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SequencePoint {
+    x: u16,
+    y: u16,
+}
+
+#[derive(Clone, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
     DisplayInfo,
@@ -143,6 +165,7 @@ enum Request {
         bundle_id: String,
     },
     LaunchApp(apps::LaunchRequest),
+    OpenUrl { url: String },
     Configuration {
         method: String,
         #[serde(default)]
@@ -151,6 +174,10 @@ enum Request {
     AxTree {
         #[serde(default)]
         include_offscreen: bool,
+        #[serde(default = "ax_timeout")]
+        timeout_ms: u64,
+        #[serde(default)]
+        event_stream: bool,
     },
     /// Names the app running as `pid`, for an accessibility root that carries no bundle ID.
     AppForPid {
@@ -167,6 +194,13 @@ enum Request {
         y: u16,
         #[serde(default = "tap_duration")]
         duration_ms: u64,
+    },
+    TapSequence {
+        points: Vec<SequencePoint>,
+        #[serde(default = "tap_duration")]
+        duration_ms: u64,
+        #[serde(default = "tap_duration")]
+        interval_ms: u64,
     },
     DoubleTap {
         x: u16,
@@ -235,6 +269,7 @@ enum Request {
         clear: bool,
     },
 }
+fn ax_timeout() -> u64 { 20000 }
 fn tap_duration() -> u64 {
     50
 }
@@ -266,7 +301,14 @@ impl Request {
 
     fn validate(&self) -> Result<()> {
         match self {
+            Self::TapSequence { points, duration_ms, interval_ms } => {
+                if !(2..=8).contains(&points.len()) || !(30..=150).contains(duration_ms) || !(30..=250).contains(interval_ms) {
+                    return Err("tap_sequence requires 2..8 points, duration_ms 30..150 and interval_ms 30..250".into());
+                }
+            }
+            Self::AxTree { timeout_ms, .. } if !(1..=20000).contains(timeout_ms) => return Err("AX timeout_ms must be 1..20000".into()),
             Self::LaunchApp(request) => request.validate()?,
+            Self::OpenUrl { url } => { apps::open_url_payload(url)?; }
             Self::InstallApp { bundle_id, .. } | Self::UninstallApp { bundle_id }
                 if bundle_id.is_empty() =>
             {
@@ -456,8 +498,9 @@ async fn execute(udid: &str, request: Request) -> Result<Value> {
     };
     let launch = matches!(request, Request::LaunchApp(_));
     let mut media = None;
+    let mut observer = None;
     let result =
-        execute_connected(&mut adapter, &mut rsd, Some(&provider), request, &mut media).await;
+        execute_connected(&mut adapter, &mut rsd, Some(&provider), request, &mut media, &mut observer).await;
     let closed = close_input(&mut media).await;
     let output = match result {
         Err(error) if launch => apps::not_sent(error),
@@ -473,8 +516,16 @@ async fn execute_connected(
     provider: Option<&dyn idevice::provider::IdeviceProvider>,
     request: Request,
     media: &mut Option<InputMedia>,
+    observer: &mut Option<ax::Monitor>,
 ) -> Result<Value> {
+    if let Request::OpenUrl { url } = request {
+        *observer = None;
+        close_input(media).await.map_err(not_sent_error)?;
+        return apps::open_url(adapter, rsd, &url).await;
+    }
     if let Request::LaunchApp(request) = request {
+        *observer = None;
+        close_input(media).await?;
         return match apps::launch(adapter, rsd, request).await {
             Err(error) if error.is::<NotSent>() => Err(error),
             result => Ok(result.unwrap_or_else(apps::not_sent)),
@@ -513,8 +564,10 @@ async fn execute_connected(
     if let Request::Configuration { method, value } = request {
         return configuration::execute(adapter, rsd, &method, value).await;
     }
-    if let Request::AxTree { include_offscreen } = request {
-        return ax::read_tree(adapter, rsd, include_offscreen).await;
+    if let Request::AxTree { include_offscreen, timeout_ms, event_stream } = request {
+        let wait = Duration::from_millis(timeout_ms);
+        if event_stream { return ax::read_streamed(adapter, rsd, observer, include_offscreen, wait).await; }
+        return ax::read_tree_with_timeout(adapter, rsd, include_offscreen, wait).await;
     }
     if let Request::AppForPid { pid } = request {
         return apps::app_for_pid(adapter, rsd, pid).await;
@@ -540,7 +593,8 @@ async fn execute_connected(
     // The device sometimes drops a touch whose connection closes straight after its last report, with no
     // error. The touch connection therefore stays open through the wait that follows the action;
     // NATIVE.md has the counts.
-    let mut touch: Option<Touch> = None;
+    let mut touch_reused = false;
+    let mut keyboard_reused = false;
     let action: Result<Value> = async {
         match request {
             Request::DisplayInfo
@@ -553,23 +607,41 @@ async fn execute_connected(
             | Request::AppForPid { .. }
             | Request::Pasteboard { .. }
             | Request::Configuration { .. }
-            | Request::LaunchApp(_) => {
+            | Request::LaunchApp(_)
+            | Request::OpenUrl { .. } => {
                 unreachable!()
             }
             Request::Tap { x, y, duration_ms } | Request::LongPress { x, y, duration_ms } => {
-                let hid = touch.insert(
-                    Touch::connect_rsd(adapter, rsd)
-                        .await
-                        .map_err(not_sent_error)?,
-                );
+                let (hid, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().touch, || async {
+                    Touch::connect_rsd(adapter, rsd).await.map_err(not_sent_error)
+                }).await?;
+                touch_reused = reused;
                 held_tap(hid, x, y, duration_ms).await?;
             }
+            Request::TapSequence { points, duration_ms, interval_ms } => {
+                let (hid, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().touch, || async {
+                    Touch::connect_rsd(adapter, rsd).await.map_err(not_sent_error)
+                }).await?;
+                touch_reused = reused;
+                let begun = std::time::Instant::now();
+                for (index, point) in points.iter().enumerate() {
+                    if let Err(error) = held_tap(hid, point.x, point.y, duration_ms).await {
+                        // Earlier complete reports are not replayed. The failing
+                        // report may have reached iOS even if transport failed.
+                        return Ok(json!({"isError":true,"outcome":"unknown","stop_reason":"unknown",
+                            "completed_taps":index,"uncertain_tap":index+1,"error":error.to_string(),
+                            "screen_change_verified":false,"instruction":"Inspect before any further input; never replay this sequence."}));
+                    }
+                    if index + 1 < points.len() { tokio::time::sleep(Duration::from_millis(interval_ms)).await; }
+                }
+                return Ok(json!({"sent":true,"completed_taps":points.len(),"screen_change_verified":false,
+                    "sequence_elapsed_ms":begun.elapsed().as_millis() as u64}));
+            }
             Request::DoubleTap { x, y, duration_ms } => {
-                let hid = touch.insert(
-                    Touch::connect_rsd(adapter, rsd)
-                        .await
-                        .map_err(not_sent_error)?,
-                );
+                let (hid, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().touch, || async {
+                    Touch::connect_rsd(adapter, rsd).await.map_err(not_sent_error)
+                }).await?;
+                touch_reused = reused;
                 held_tap(hid, x, y, duration_ms).await?;
                 tokio::time::sleep(Duration::from_millis(80)).await;
                 held_tap(hid, x, y, duration_ms).await?;
@@ -583,11 +655,10 @@ async fn execute_connected(
                 hold_ms,
                 end_hold_ms,
             } => {
-                let hid = touch.insert(
-                    Touch::connect_rsd(adapter, rsd)
-                        .await
-                        .map_err(not_sent_error)?,
-                );
+                let (hid, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().touch, || async {
+                    Touch::connect_rsd(adapter, rsd).await.map_err(not_sent_error)
+                }).await?;
+                touch_reused = reused;
                 Drag {
                     x1,
                     y1,
@@ -608,11 +679,10 @@ async fn execute_connected(
                 angle,
                 duration_ms,
             } => {
-                let hid = touch.insert(
-                    Touch::connect_rsd(adapter, rsd)
-                        .await
-                        .map_err(not_sent_error)?,
-                );
+                let (hid, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().touch, || async {
+                    Touch::connect_rsd(adapter, rsd).await.map_err(not_sent_error)
+                }).await?;
+                touch_reused = reused;
                 Pinch {
                     x,
                     y,
@@ -625,11 +695,10 @@ async fn execute_connected(
                 .await?;
             }
             Request::DrawStrokes { strokes } => {
-                let hid = touch.insert(
-                    Touch::connect_rsd(adapter, rsd)
-                        .await
-                        .map_err(not_sent_error)?,
-                );
+                let (hid, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().touch, || async {
+                    Touch::connect_rsd(adapter, rsd).await.map_err(not_sent_error)
+                }).await?;
+                touch_reused = reused;
                 let begun = std::time::Instant::now();
                 strokes.send(hid).await?;
                 return Ok(json!({
@@ -644,21 +713,20 @@ async fn execute_connected(
                 modifiers,
                 count,
             } => {
-                let mut keyboard = Keyboard::connect(adapter, rsd).await?;
+                let (keyboard, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().keyboard, || Keyboard::connect(adapter, rsd)).await?;
+                keyboard_reused = reused;
                 let usages = modifiers
                     .iter()
                     .map(|m| modifier_usage(m))
                     .collect::<Result<Vec<_>>>()?;
                 let outcome: Result<()> = async {
                     for _ in 0..count {
-                        chord(&mut keyboard, key_usage(&key)?, &usages).await?;
+                        chord(keyboard, key_usage(&key)?, &usages).await?;
                     }
                     Ok(())
                 }
                 .await;
-                let cleanup = keyboard.close().await;
                 outcome?;
-                cleanup?;
             }
             Request::Button {
                 button,
@@ -691,29 +759,33 @@ async fn execute_connected(
                 submit,
                 target,
             } => {
-                let mut keyboard = Keyboard::connect(adapter, rsd).await?;
+                let (keyboard, reused) = session_input::cached_channel(&mut media.as_mut().unwrap().keyboard, || Keyboard::connect(adapter, rsd)).await?;
+                keyboard_reused = reused;
                 let outcome = pasteboard::paste_text(
                     adapter,
                     rsd,
-                    &mut keyboard,
+                    keyboard,
                     &text,
                     clear,
                     submit,
                     target.as_ref(),
                 )
                 .await;
-                let cleanup = keyboard.close().await;
-                let result = outcome?;
-                cleanup?;
-                return Ok(result);
+                return outcome;
             }
         }
         Ok(json!({"sent":true,"screen_change_verified":false}))
     }
     .await;
+    if let Some(observer) = observer.as_mut() { observer.invalidate(); }
     tokio::time::sleep(Duration::from_millis(300)).await;
-    drop(touch);
-    action
+    if action.as_ref().is_err() || action.as_ref().is_ok_and(|v| v["isError"] == true) {
+        let _ = close_input(media).await;
+    }
+    action.map(|mut value| {
+        value["native_input"] = json!({"touch_reused":touch_reused,"keyboard_reused":keyboard_reused,"idle_release_ms":5000,"delivery_hold_ms":300});
+        value
+    })
 }
 
 async fn held_tap(hid: &mut Touch, x: u16, y: u16, ms: u64) -> Result<()> {
@@ -938,3 +1010,6 @@ async fn chord(keyboard: &mut Keyboard, key: u64, modifiers: &[u64]) -> Result<(
     tokio::time::sleep(Duration::from_millis(50)).await;
     Ok(())
 }
+
+#[cfg(test)]
+mod speed_tests;

@@ -1,0 +1,856 @@
+{
+  "protocol": "real-jev-core-v1",
+  "stage": "before-followup-optimization",
+  "device_model": "iPhone 15 Pro Max",
+  "execution_path": "full native Poki MCP run_code",
+  "comparator": "local observed exact label vs real Jev API; identical timed actions and final positive checkpoints",
+  "software": {
+    "workflow_sha256": "1213532e70752afec64e4ca9dde585a2e7db07ea258236f0f50f4caa4cbe3689",
+    "native_build": "native-proof-v1-583fd4e657ace1e679221f0dc326d0346b51ca3d9710be20d6c071a9fa1a1186"
+  },
+  "records": {
+    "Clock": [
+      {
+        "condition": "local",
+        "trial": 1,
+        "setup_started_at": "2026-11-12T20:21:11.132Z",
+        "setup_ms": 9088,
+        "start_observation_id": "f5423c8e-fd1a-49d3-945c-291bf10ee241",
+        "started_at": "2026-11-12T20:21:20.222Z",
+        "choice_ms": 1554,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.11,
+            "observation_ms": 1483.07,
+            "approval_ms": 0
+          },
+          "observation_id": "d42d8f12-844e-4804-b2a8-19da65fb9555",
+          "label": "Stopwatch"
+        },
+        "tap_ms": 443,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 2012,
+        "phone_total_ms": 4009,
+        "final_native_ax": {
+          "answer_ms": 1586,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 359,
+          "subscribe_ms": 1,
+          "total_ms": 1946
+        },
+        "final_observation_id": "1bcf8213-f0cc-406e-b099-566b4c830e9f",
+        "success": true,
+        "pair": 1
+      },
+      {
+        "condition": "jev",
+        "trial": 1,
+        "setup_started_at": "2026-11-12T20:21:24.231Z",
+        "setup_ms": 3091,
+        "start_observation_id": "3902f03f-0832-4cbc-b5b4-cb5397fdabe6",
+        "started_at": "2026-11-12T20:21:27.322Z",
+        "choice_ms": 2789,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.92,
+          "observation_id": "275f773c-9303-441d-909d-0f9833753e7b",
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 764.99,
+            "observation_ms": 1446.3,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 118,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "label": "Stopwatch"
+        },
+        "tap_ms": 2205,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 2311,
+        "phone_total_ms": 7305,
+        "final_native_ax": {
+          "answer_ms": 1190,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 273,
+          "subscribe_ms": 0,
+          "total_ms": 1463
+        },
+        "final_observation_id": "ef0ae9a8-0035-475e-8051-38a08bfe504f",
+        "success": true,
+        "pair": 1
+      },
+      {
+        "condition": "jev",
+        "trial": 2,
+        "setup_started_at": "2026-11-12T20:21:48.869Z",
+        "setup_ms": 8332,
+        "start_observation_id": "f89e5394-7c73-499f-962d-a975ad770ed3",
+        "started_at": "2026-11-12T20:21:57.202Z",
+        "choice_ms": 3298,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.92,
+          "observation_id": "9cf2d82f-0d4f-455a-bb6b-d6af20ad50c8",
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 1071.28,
+            "observation_ms": 1562.7,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 117,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "label": "Stopwatch"
+        },
+        "tap_ms": 2507,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 2397,
+        "phone_total_ms": 8203,
+        "final_native_ax": {
+          "answer_ms": 1284,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 96,
+          "subscribe_ms": 0,
+          "total_ms": 1380
+        },
+        "final_observation_id": "54fb08a4-cdb4-4fc0-ab9b-39fcbca28ebc",
+        "success": true,
+        "pair": 2
+      },
+      {
+        "condition": "local",
+        "trial": 2,
+        "setup_started_at": "2026-11-12T20:22:05.406Z",
+        "setup_ms": 6635,
+        "start_observation_id": "24bb4c26-668b-4d94-ad74-37df093df843",
+        "started_at": "2026-11-12T20:22:12.041Z",
+        "choice_ms": 1795,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.05,
+            "observation_ms": 1648.85,
+            "approval_ms": 0
+          },
+          "observation_id": "a6c2cc86-c54f-4083-886e-f3a591f85d84",
+          "label": "Stopwatch"
+        },
+        "tap_ms": 3180,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 1305,
+        "phone_total_ms": 6280,
+        "final_native_ax": {
+          "answer_ms": 1062,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 98,
+          "subscribe_ms": 0,
+          "total_ms": 1160
+        },
+        "final_observation_id": "0f6aa365-70bd-4d58-a8d9-1e5fe452ff77",
+        "success": true,
+        "pair": 2
+      },
+      {
+        "condition": "local",
+        "trial": 3,
+        "setup_started_at": "2026-11-12T20:22:19.176Z",
+        "setup_ms": 4465,
+        "start_observation_id": "383f2ad1-b2bd-439c-983f-c61efb370ae0",
+        "started_at": "2026-11-12T20:22:23.641Z",
+        "choice_ms": 2311,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.25,
+            "observation_ms": 1902.99,
+            "approval_ms": 0
+          },
+          "observation_id": "cb6bb3b2-8756-4baa-b58f-d188a055cfb5",
+          "label": "Stopwatch"
+        },
+        "tap_ms": 3636,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 3313,
+        "phone_total_ms": 9260,
+        "final_native_ax": {
+          "answer_ms": 1401,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 125,
+          "subscribe_ms": 0,
+          "total_ms": 1526
+        },
+        "final_observation_id": "d2614846-cccb-4eee-98e2-1236a08a6881",
+        "success": true,
+        "pair": 3
+      },
+      {
+        "condition": "jev",
+        "trial": 3,
+        "setup_started_at": "2026-11-12T20:22:32.901Z",
+        "setup_ms": 7900,
+        "start_observation_id": "0263946c-7c05-458e-b229-2ca3dae93fe6",
+        "started_at": "2026-11-12T20:22:40.801Z",
+        "choice_ms": 3716,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "proposal_requires_fresh_executor_validation",
+          "source": "jev",
+          "execution_authorized": false,
+          "confidence": 0.94,
+          "observation_id": "407780e4-ec10-4840-8e56-d529b6b5bc67",
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 649.42,
+            "observation_ms": 2141.07,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 116,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "label": "Stopwatch"
+        },
+        "tap_ms": 2136,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 1326,
+        "phone_total_ms": 7178,
+        "final_native_ax": {
+          "answer_ms": 1076,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 112,
+          "subscribe_ms": 1,
+          "total_ms": 1189
+        },
+        "final_observation_id": "de617272-455c-4d21-84ac-e17db3302f54",
+        "success": true,
+        "pair": 3
+      }
+    ],
+    "Settings": [
+      {
+        "condition": "local",
+        "trial": 1,
+        "setup_started_at": "2026-11-12T20:23:33.465Z",
+        "setup_ms": 7616,
+        "start_observation_id": "e9e75e8f-03fb-465b-93d7-6aa4f845e392",
+        "started_at": "2026-11-12T20:23:41.081Z",
+        "choice_ms": 1552,
+        "proposal": {
+          "action_id": "a1",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 2.41,
+            "observation_ms": 1520.28,
+            "approval_ms": 0
+          },
+          "observation_id": "45639416-09f9-4748-9f04-64cf908c94b0",
+          "label": "Keyboard"
+        },
+        "tap_ms": 1968,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 1227,
+        "phone_total_ms": 4747,
+        "final_native_ax": {
+          "answer_ms": 1043,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 121,
+          "subscribe_ms": 1,
+          "total_ms": 1165
+        },
+        "final_observation_id": "e3f4952c-6fc7-4c65-90ec-ed3a34f1ed6f",
+        "success": true,
+        "pair": 1
+      },
+      {
+        "condition": "jev",
+        "trial": 1,
+        "setup_started_at": "2026-11-12T20:23:45.828Z",
+        "setup_ms": 1602,
+        "start_observation_id": "edb0d09f-ffbe-4a67-ad99-04bbb9438dee",
+        "started_at": "2026-11-12T20:23:47.430Z",
+        "choice_ms": 1897,
+        "proposal": {
+          "action_id": "REOBSERVE",
+          "reason": "uncertain_model_choice",
+          "source": "jev",
+          "execution_authorized": false,
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 508.48,
+            "observation_ms": 1360.53,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 115,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "observation_id": "d2ec2d5d-6eb0-4353-8460-390f92839d3c"
+        },
+        "success": false,
+        "error": "unqualified_choice_uncertain_model_choice",
+        "pair": 1
+      },
+      {
+        "condition": "jev",
+        "trial": 2,
+        "setup_started_at": "2026-11-12T20:25:08.767Z",
+        "setup_ms": 11226,
+        "start_observation_id": "4800f2c8-9343-47b7-9942-2ecf5148c6c2",
+        "started_at": "2026-11-12T20:25:19.994Z",
+        "choice_ms": 1910,
+        "proposal": {
+          "action_id": "REOBSERVE",
+          "reason": "uncertain_model_choice",
+          "source": "jev",
+          "execution_authorized": false,
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 574.32,
+            "observation_ms": 1308.89,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 114,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "observation_id": "bf5909f4-2fa7-40e5-9d6d-ac79f4c4d329"
+        },
+        "failed_elapsed_ms": 1910,
+        "success": false,
+        "error": "unqualified_choice_uncertain_model_choice",
+        "pair": 2
+      },
+      {
+        "condition": "local",
+        "trial": 2,
+        "setup_started_at": "2026-11-12T20:25:21.982Z",
+        "setup_ms": 7614,
+        "start_observation_id": "c164c713-16ce-4d49-bba0-9d9caba94599",
+        "started_at": "2026-11-12T20:25:29.596Z",
+        "choice_ms": 1422,
+        "proposal": {
+          "action_id": "a1",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.03,
+            "observation_ms": 1382.62,
+            "approval_ms": 0
+          },
+          "observation_id": "401aa692-f85f-4177-8861-3250104ed016",
+          "label": "Keyboard"
+        },
+        "tap_ms": 378,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 1247,
+        "phone_total_ms": 3047,
+        "final_native_ax": {
+          "answer_ms": 953,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 267,
+          "subscribe_ms": 0,
+          "total_ms": 1220
+        },
+        "final_observation_id": "2d625617-5f8e-401f-b46d-50efb532a19a",
+        "success": true,
+        "pair": 2
+      },
+      {
+        "condition": "local",
+        "trial": 3,
+        "setup_started_at": "2026-11-12T20:25:32.710Z",
+        "setup_ms": 5203,
+        "start_observation_id": "1be9efae-f7e7-48d5-bfc2-f7c7394d9ac2",
+        "started_at": "2026-11-12T20:25:37.913Z",
+        "choice_ms": 1549,
+        "proposal": {
+          "action_id": "a1",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.03,
+            "observation_ms": 1526.91,
+            "approval_ms": 0
+          },
+          "observation_id": "9e5820ef-89d1-49e0-bb48-58dc640315f2",
+          "label": "Keyboard"
+        },
+        "tap_ms": 374,
+        "touch_reused": true,
+        "delivery_hold_ms": 300,
+        "final_read_ms": 1722,
+        "phone_total_ms": 3645,
+        "final_native_ax": {
+          "answer_ms": 1592,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 104,
+          "subscribe_ms": 0,
+          "total_ms": 1696
+        },
+        "final_observation_id": "b4c3c7c2-7f34-48bb-87f9-9233a42badcb",
+        "success": true,
+        "pair": 3
+      },
+      {
+        "condition": "jev",
+        "trial": 3,
+        "setup_started_at": "2026-11-12T20:25:41.633Z",
+        "setup_ms": 5332,
+        "start_observation_id": "8f144cff-030a-4124-a33f-8c2af4eb7aaf",
+        "started_at": "2026-11-12T20:25:46.965Z",
+        "choice_ms": 1983,
+        "proposal": {
+          "action_id": "REOBSERVE",
+          "reason": "uncertain_model_choice",
+          "source": "jev",
+          "execution_authorized": false,
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 568.64,
+            "observation_ms": 1388.29,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 113,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "observation_id": "47aad211-8332-4a92-accb-8624fdc45bd1"
+        },
+        "failed_elapsed_ms": 1983,
+        "success": false,
+        "error": "unqualified_choice_uncertain_model_choice",
+        "pair": 3
+      }
+    ],
+    "Notes": [
+      {
+        "condition": "local",
+        "trial": 1,
+        "setup_started_at": "2026-11-12T20:29:25.102Z",
+        "setup_ms": 26068,
+        "start_observation_id": "8f83e0b7-11f5-4e35-99b9-98b3143882bc",
+        "started_at": "2026-11-12T20:29:51.171Z",
+        "fill_ms": 9561,
+        "text_verified": true,
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 509,
+            "clipboard_set_ms": 151,
+            "clipboard_snapshot_ms": 1525,
+            "finish_ms": 0,
+            "initial_ax_ms": 1513,
+            "paste_dispatch_ms": 209,
+            "verification_ms": 1677
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "choice_ms": 1997,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.13,
+            "observation_ms": 1953.49,
+            "approval_ms": 0
+          },
+          "observation_id": "64d73c3e-e99d-47cf-b16c-10a5ce6dc6b7",
+          "label": "Done"
+        },
+        "tap_ms": 429,
+        "touch_reused": true,
+        "final_read_ms": 1158,
+        "phone_total_ms": 13145,
+        "final_observation_id": "9e71cf79-6e58-4cdf-96fe-61ce9e85f5f4",
+        "final_native_ax": {
+          "answer_ms": 1003,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 92,
+          "subscribe_ms": 0,
+          "total_ms": 1095
+        },
+        "success": true
+      },
+      {
+        "condition": "jev",
+        "trial": 1,
+        "setup_started_at": "2026-11-12T20:30:50.792Z",
+        "setup_ms": 27376,
+        "start_observation_id": "bd599a76-2ba3-4462-b0e5-e280757580dd",
+        "started_at": "2026-11-12T20:31:18.168Z",
+        "fill_ms": 9217,
+        "text_verified": true,
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 808,
+            "clipboard_set_ms": 139,
+            "clipboard_snapshot_ms": 511,
+            "finish_ms": 0,
+            "initial_ax_ms": 1447,
+            "paste_dispatch_ms": 212,
+            "verification_ms": 1409
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "choice_ms": 2633,
+        "proposal": {
+          "action_id": "REOBSERVE",
+          "reason": "uncertain_model_choice",
+          "source": "jev",
+          "execution_authorized": false,
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 1229.31,
+            "observation_ms": 1374.97,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 112,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "observation_id": "69f49b73-e43e-4717-bcc5-80016cc85fed"
+        },
+        "failed_elapsed_ms": 11851,
+        "success": false,
+        "error": "unqualified_choice_uncertain_model_choice"
+      },
+      {
+        "condition": "local",
+        "trial": 2,
+        "setup_started_at": "2026-11-12T20:32:15.210Z",
+        "setup_ms": 12122,
+        "start_observation_id": "4b853747-a0d7-4c47-a555-bcc3b7334875",
+        "started_at": "2026-11-12T20:32:27.332Z",
+        "fill_ms": 8923,
+        "text_verified": true,
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 540,
+            "clipboard_set_ms": 121,
+            "clipboard_snapshot_ms": 509,
+            "finish_ms": 0,
+            "initial_ax_ms": 1498,
+            "paste_dispatch_ms": 210,
+            "verification_ms": 1894
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "choice_ms": 1608,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.04,
+            "observation_ms": 1595.54,
+            "approval_ms": 0
+          },
+          "observation_id": "3d3b3658-ffb4-4762-aabf-01ed41c4d48d",
+          "label": "Done"
+        },
+        "tap_ms": 500,
+        "touch_reused": false,
+        "final_read_ms": 1566,
+        "phone_total_ms": 12597,
+        "final_observation_id": "d83f6666-c885-4a23-a2a1-68291c44ad3e",
+        "final_native_ax": {
+          "answer_ms": 1445,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 95,
+          "subscribe_ms": 0,
+          "total_ms": 1540
+        },
+        "success": true
+      },
+      {
+        "condition": "jev",
+        "trial": 2,
+        "setup_started_at": "2026-11-12T20:31:30.134Z",
+        "setup_ms": 10927,
+        "start_observation_id": "b91a4ef8-b6c8-44d6-b4a2-83114f72d667",
+        "started_at": "2026-11-12T20:31:41.061Z",
+        "fill_ms": 8473,
+        "text_verified": true,
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 944,
+            "clipboard_set_ms": 124,
+            "clipboard_snapshot_ms": 297,
+            "finish_ms": 0,
+            "initial_ax_ms": 1381,
+            "paste_dispatch_ms": 211,
+            "verification_ms": 1378
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "choice_ms": 2365,
+        "proposal": {
+          "action_id": "REOBSERVE",
+          "reason": "uncertain_model_choice",
+          "source": "jev",
+          "execution_authorized": false,
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 780.32,
+            "observation_ms": 1559.78,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 111,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "observation_id": "838326b1-bc1c-4bb5-a3cb-b6697af095de"
+        },
+        "failed_elapsed_ms": 10838,
+        "success": false,
+        "error": "unqualified_choice_uncertain_model_choice"
+      },
+      {
+        "condition": "local",
+        "trial": 3,
+        "setup_started_at": "2026-11-12T20:32:40.019Z",
+        "setup_ms": 16382,
+        "start_observation_id": "09e57a7d-f196-4928-8249-4e20b9fda86f",
+        "started_at": "2026-11-12T20:32:56.402Z",
+        "fill_ms": 7725,
+        "text_verified": true,
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 271,
+            "clipboard_set_ms": 121,
+            "clipboard_snapshot_ms": 390,
+            "finish_ms": 0,
+            "initial_ax_ms": 1451,
+            "paste_dispatch_ms": 207,
+            "verification_ms": 1324
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "choice_ms": 1589,
+        "proposal": {
+          "action_id": "a2",
+          "reason": "unique_observed_exact_match",
+          "source": "local",
+          "execution_authorized": false,
+          "model_calls": 0,
+          "decision_timing": {
+            "decision_ms": 0.05,
+            "observation_ms": 1564.31,
+            "approval_ms": 0
+          },
+          "observation_id": "6e3df8e3-dbd4-4424-bd06-44d3a7cdfc1b",
+          "label": "Done"
+        },
+        "tap_ms": 382,
+        "touch_reused": true,
+        "final_read_ms": 1615,
+        "phone_total_ms": 11311,
+        "final_observation_id": "c077c587-92a9-4a56-9c91-cc6f4ee4b8c6",
+        "final_native_ax": {
+          "answer_ms": 1493,
+          "attempts": 1,
+          "cleanup_ms": 0,
+          "connect_ms": 98,
+          "subscribe_ms": 1,
+          "total_ms": 1592
+        },
+        "success": true
+      },
+      {
+        "condition": "jev",
+        "trial": 3,
+        "setup_started_at": "2026-11-12T20:33:07.796Z",
+        "setup_ms": 20244,
+        "start_observation_id": "eb6950ef-e11b-4af8-b6ba-f06c87cbee65",
+        "started_at": "2026-11-12T20:33:28.040Z",
+        "fill_ms": 8592,
+        "text_verified": true,
+        "native_paste": {
+          "phases": {
+            "clear_and_encode_ms": 0,
+            "clipboard_connect_ms": 0,
+            "clipboard_connection_reused": true,
+            "clipboard_restore_ms": 789,
+            "clipboard_set_ms": 103,
+            "clipboard_snapshot_ms": 403,
+            "finish_ms": 0,
+            "initial_ax_ms": 1358,
+            "paste_dispatch_ms": 207,
+            "verification_ms": 1283
+          }
+        },
+        "native_input": {
+          "delivery_hold_ms": 300,
+          "idle_release_ms": 5000,
+          "keyboard_reused": true,
+          "touch_reused": false
+        },
+        "choice_ms": 2245,
+        "proposal": {
+          "action_id": "REOBSERVE",
+          "reason": "uncertain_model_choice",
+          "source": "jev",
+          "execution_authorized": false,
+          "model_calls": 1,
+          "decision_timing": {
+            "decision_ms": 698.58,
+            "observation_ms": 1522.12,
+            "approval_ms": 0
+          },
+          "model_session": {
+            "remaining_calls": 110,
+            "expires_at": 1794518431617,
+            "scope": "proposal_only",
+            "lease_bound": true
+          },
+          "observation_id": "7c80ddff-67ed-4545-a5cc-c00f939907b2"
+        },
+        "failed_elapsed_ms": 10837,
+        "success": false,
+        "error": "unqualified_choice_uncertain_model_choice"
+      }
+    ]
+  },
+  "excluded_pilot": {
+    "reason": "concurrent full JS suite",
+    "clock_local_ms": [
+      6961,
+      6803,
+      7363
+    ]
+  },
+  "forced_deadline_diagnostic": {
+    "note": "Artificial 100ms AX deadline, no phone input; not ordinary action-speed evidence",
+    "before": [
+      {
+        "trial": 1,
+        "caller_ms": 3322,
+        "stop_reason": "timeout",
+        "readback_ms": 3169,
+        "screen_returned": true
+      },
+      {
+        "trial": 2,
+        "caller_ms": 1608,
+        "stop_reason": "timeout",
+        "readback_ms": 1454,
+        "screen_returned": true
+      },
+      {
+        "trial": 3,
+        "caller_ms": 1520,
+        "stop_reason": "timeout",
+        "readback_ms": 1364,
+        "screen_returned": true
+      }
+    ]
+  }
+}

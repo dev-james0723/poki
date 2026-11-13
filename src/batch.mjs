@@ -1,7 +1,7 @@
-import { checkWork, phase, stopped, stoppingReason } from './work.mjs';
+import { checkWork, phase, stopped, stoppingReason, timingsSince } from './work.mjs';
 import { managementTools } from './coordination.mjs';
 import { definitions } from './tools.mjs';
-import { closestTo } from './interaction.mjs';
+import { closestTo, describeScreen } from './interaction.mjs';
 import { flagOn } from './element-flags.mjs';
 
 const json = value => ({ type: 'text', text: JSON.stringify(value) });
@@ -15,7 +15,7 @@ export const stepTool = tool => tool.replace(/^mcp__poki-mcp__/, '');
 export const stopsRun = reason => Boolean(reason) && reason !== 'error' && reason !== 'no_change';
 
 export function invalidStep(command) {
-  if (command.tool === 'batch_commands' || command.tool === 'run_code') return 'Nested batches are not supported, and neither is run_code.';
+  if (['batch_commands','run_code','run_workflow'].includes(command.tool)) return 'Nested batches are not supported; neither are run_code or run_workflow.';
   if (managementTools.has(command.tool)) return 'Call device management tools outside a batch.';
   const definition = definitions.find(([name]) => name === command.tool);
   if (!definition) {
@@ -36,15 +36,73 @@ function advice(reason, failedStep) {
   return `${earlier} Work stopped (${reason}); check the screen before continuing.`;
 }
 
+// An explicit last read is already the caller's checkpoint. Reuse only a complete,
+// live AX result from this device and revision, taken after the last input. Event
+// hints, partial trees and failed reads keep the normal final-read path.
+async function finalSnapshot(ctx, command, result) {
+  if (command?.tool !== 'snapshot_ui' || result?.isError) return;
+  let data;
+  try { data = JSON.parse(result.content?.find(block => block.type === 'text')?.text); }
+  catch { return; }
+  const observation = data?.observation;
+  const started = Date.parse(observation?.structure_started_at);
+  const completed = Date.parse(observation?.structure_completed_at);
+  const inputCompleted = Date.parse(ctx.lastInputCompletedAt);
+  if (data?.source !== 'accessibility' || observation?.source !== 'accessibility' ||
+      observation.input_freshness !== 'live_read' || data.event_source !== 'accessibility_live' ||
+      data.image_captured !== false || data.truncated !== false ||
+      data.scope !== undefined || (data.source_total !== undefined && data.source_total !== data.total) ||
+      !Array.isArray(data.elements) || !data.elements.length || data.total !== data.elements.length ||
+      !(data.foreground?.bundle_id || data.foreground?.name) ||
+      !Number.isFinite(started) || !Number.isFinite(completed) || completed < started ||
+      (Number.isFinite(inputCompleted) && started < inputCompleted)) return;
+  const target = await ctx.target();
+  if (observation.device !== target.id || observation.revision !== ctx.coordinator.revision(target.id)) return;
+  return { ...describeScreen({foreground:data.foreground,elements:data.elements}),
+    observed_at:observation.structure_completed_at, observation_id:observation.id,
+    screen_stable:false, ...(data.prompt ? {prompt:data.prompt} : {}) };
+}
+
+// This receipt proves the supplied text in its native field. It is deliberately
+// not a screen snapshot, a cache seed, or proof of a submit/app-side effect.
+export async function finalNativeText(ctx,command,result) {
+  const args=command?.arguments;
+  if(!args?.native_text_result || result?.isError)return;
+  let proof;
+  try { proof=JSON.parse(result.content?.find(block=>block.type==='text')?.text); }
+  catch { return; }
+  if(proof?.sent!==true || proof.text_verified!==true || proof.submit_sent!==false ||
+     proof.isError || proof.stopped || proof.stop_reason || proof.outcome==='unknown' ||
+     proof.verification_source!=='accessibility' || proof.characters!==Array.from(args.text).length ||
+     typeof proof.field?.object_id!=='string' || !proof.field.object_id ||
+     !['TextField','TextArea','TextView','SearchField'].includes(proof.field.role) ||
+     !Number.isInteger(proof.native_runtime?.pid) || proof.native_runtime.pid<=0 ||
+     typeof proof.native_runtime.build_id!=='string' || !proof.native_runtime.build_id || proof.native_runtime.build_id==='unversioned' ||
+     !Array.isArray(proof.native_runtime.features) || !proof.native_runtime.features.includes('native_paste_timings'))return;
+  const target=await ctx.target();
+  if(target.kind!=='physical' || proof.native_runtime.device && proof.native_runtime.device!==target.id)return;
+  return {scope:'text_input',text_verified:true,characters:proof.characters,submit_sent:false,
+    verification_source:'accessibility',field:{name:proof.field.name??null,role:proof.field.role},
+    clipboard_restored:proof.clipboard_restored===true,clipboard_restore_status:proof.clipboard_restore_status??'unknown'};
+}
+
 // A batch is one queued operation, so its steps share a device lookup. A touch is compared with the
 // screen before it when a later step depends on that (see Devices.checksStep); the screen itself is
 // read back once, after the last step.
 export async function runBatch(ctx, args) {
+  const batchStarted = performance.now();
   const commands = args.commands.map(command => {
     const tool = stepTool(command.tool);
     const supportsVerification = definitions.find(([name]) => name === tool)?.[2].shape?.verify;
     return { ...command, tool, ...(args.verify === false && supportsVerification ? { arguments: { verify: false, ...command.arguments } } : {}) };
   });
+  const invalidTextMode=commands.findIndex((c,i)=>c.arguments?.native_text_result===true &&
+    (i!==commands.length-1 || !['fill','type_text'].includes(c.tool) || c.arguments.submit!==false ||
+     typeof c.arguments.expected_app!=='string' || !c.arguments.expected_app.trim() ||
+     c.arguments.return_observation===true || c.arguments.post_action_ocr===true));
+  if(invalidTextMode>=0)return {isError:true,content:[receipt({completed_steps:0,stop_reason:'error',
+    reason:'native_text_result_requires_final_non_submitting_text_with_expected_app',
+    instruction:'Nothing ran. Use native_text_result only on the final fill/type_text with submit:false and expected_app; request a separate screen observation when needed.'})]};
   const unverified = commands.some(command => command.arguments?.verify === false);
   const stopOnError = args.stop_on_error !== false;
   const invalid = stopOnError ? commands.findIndex(invalidStep) : -1;
@@ -53,12 +111,12 @@ export async function runBatch(ctx, args) {
     return { isError: true, content: [json({ step: invalid + 1, tool: commands[invalid].tool, isError: true, elapsed_ms: 0 }), { type: 'text', text: error }, receipt({ completed_steps: 0, stop_reason: 'error', failed_step: { step: invalid + 1, ...commands[invalid], error }, remaining_steps: commands, next: 'Nothing ran. Fix the failed step and send the whole batch again.' })] };
   }
   const blocks = [];
-  let stopReason, failed = false, ran = 0, failure, unchanged;
+  let stopReason, failed = false, ran = 0, failure, unchanged, lastResult, stepsMs = 0, readbackMs = 0;
   ctx.inBatch = true;
   try {
     for (const [index, command] of commands.entries()) {
       const started = performance.now();
-      ctx.batchStep = { next: commands[index + 1], stopOnError };
+      ctx.batchStep = { next: commands[index + 1], nextIsFinal: index + 2 === commands.length, stopOnError };
       let result;
       try {
         checkWork();
@@ -70,7 +128,10 @@ export async function runBatch(ctx, args) {
         if (stopped(error)) stopReason = stoppingReason(error);
       }
       ran++;
-      blocks.push(json({ step: ran, tool: command.tool, isError: Boolean(result.isError), elapsed_ms: Math.round(performance.now() - started) }), ...result.content);
+      lastResult = result;
+      const elapsed = Math.round(performance.now() - started);
+      stepsMs += elapsed;
+      blocks.push(json({ step: ran, tool: command.tool, isError: Boolean(result.isError), elapsed_ms: elapsed }), ...result.content);
       // A fill that typed the wrong text is an ordinary failure: stop_on_error decides, not this block.
       // A touch with no observed change may still have worked. The batch pauses only to hold back the steps
       // written for the screen it should produce, so with none left, or when the caller allows it, it goes on.
@@ -89,12 +150,22 @@ export async function runBatch(ctx, args) {
   const summary = unverified ? { verified: false } : {};
   // Reading a simulator that a step just shut down would boot it again.
   const last = commands.slice(0, ran).findLast(command => !offDevice.has(command.tool));
-  if (last && last.tool !== 'shut_down_simulator') {
+  const exhaustedExplicitRead=failure?.tool==='snapshot_ui'&&stopReason==='timeout';
+  if(exhaustedExplicitRead)summary.final_read_unavailable={tool:'snapshot_ui',reason:'timeout',automatic_retry:false};
+  if (last && last.tool !== 'shut_down_simulator' && !exhaustedExplicitRead) {
     // dispatch restores both when this batch ends.
     if (last.arguments?.device) { ctx.requested = last.arguments.device; ctx.resolved = undefined; }
-    const { screen, stop_reason } = await phase('batch_readback', () => ctx.readback(undefined, { once: unverified }));
+    const readStarted = performance.now();
+    const nativeText=!failed&&!stopReason ? await finalNativeText(ctx,commands[ran-1],lastResult) : undefined;
+    if(nativeText)summary.native_text_result=nativeText;
+    else {
+    const explicit = await finalSnapshot(ctx, commands[ran - 1], lastResult);
+    const { screen, stop_reason } = explicit ? {screen:explicit}
+      : await phase('batch_readback', () => ctx.readback(undefined, { once: unverified }));
     stopReason ??= stop_reason;
     summary.screen = screen;
+    }
+    readbackMs = Math.round(performance.now() - readStarted);
   }
   if (stopReason) {
     if (failure) {
@@ -112,5 +183,7 @@ export async function runBatch(ctx, args) {
     else if (unchanged) Object.assign(summary, { unchanged_step: unchanged, remaining_steps: commands.slice(ran), next: advice(stopReason, ran) });
     else Object.assign(summary, { remaining_steps: commands.slice(ran), next: advice(stopReason, ran + 1) });
   }
-  return { ...(failed || stopReason ? { isError: true } : {}), content: [...blocks, receipt({ completed_steps: ran, stop_reason: stopReason ?? null, ...summary })] };
+  const timing = {queue_ms:timingsSince(0).find(entry => entry.phase === 'queue')?.elapsed_ms ?? 0,
+    batch_ms:Math.round(performance.now() - batchStarted),steps_ms:stepsMs,readback_ms:readbackMs};
+  return { ...(failed || stopReason ? { isError: true } : {}), content: [...blocks, receipt({ completed_steps: ran, stop_reason: stopReason ?? null, ...summary, timing })] };
 }

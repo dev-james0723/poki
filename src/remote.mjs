@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { root, stateDir } from './config.mjs';
-import { checkWork, signal, phase } from './work.mjs';
+import { checkWork, signal, phase, remainingMs, work } from './work.mjs';
 
 const starting = new Map();
 const localHelpers = new Map();
@@ -103,10 +103,12 @@ async function socketFor(target) {
 
 export async function nativeRequest(target, request) {
   checkWork();
+  if (request.op === "ax_tree") request = { ...request, timeout_ms: remainingMs(Math.min(request.timeout_ms ?? 20000,20000)) };
   const callerSignal = signal();
   const { socket, path } = await phase('native_helper', () => socketFor(target));
   try { checkWork(); } catch (error) { socket.destroy(); throw error; }
   return phase('native_request', () => new Promise((resolve, reject) => {
+    const context=work.getStore(),began=performance.now();let sentAt,repliedAt;
     const lines = createInterface({ input: socket });
     let pid, outcome, abortReason;
     const abort = reason => {
@@ -114,7 +116,7 @@ export async function nativeRequest(target, request) {
       socket.destroy();
     };
     const onAbort = () => abort(callerSignal.reason);
-    const timer = setTimeout(() => abort(new DOMException('Remote operation timed out; inspect before retrying input.', 'TimeoutError')), 120000);
+    const timer = setTimeout(() => abort(new DOMException(readOnly.has(request.op) ? 'Remote read timed out; no input was sent.' : 'Remote operation timed out; inspect before retrying input.', 'TimeoutError')), 120000);
     callerSignal?.addEventListener('abort', onAbort, { once: true });
     lines.on('line', line => {
       if (abortReason) return;
@@ -124,12 +126,20 @@ export async function nativeRequest(target, request) {
         if (!Number.isSafeInteger(value.pid) || value.pid <= 1) { abort(new Error('Invalid remote helper identity.')); return; }
         pid = value.pid;
         if (callerSignal?.aborted) { abort(callerSignal.reason); return; }
-        socket.write(JSON.stringify(request) + '\n');
-      } else { outcome = value; socket.end(); }
+        sentAt=performance.now();socket.write(JSON.stringify(request) + '\n');
+      } else { repliedAt=performance.now();outcome = value; socket.end(); }
     });
     const helperName = target.remote ? 'Remote' : 'Native';
-    socket.on('error', () => { abortReason ??= new Error(!target.remote && readOnly.has(request.op) ? 'Native helper connection closed during a read.' : `${helperName} helper connection closed. Input may have been delivered; inspect before retrying.`); });
+    socket.on('error', () => { abortReason ??= new Error(readOnly.has(request.op) ? `${helperName} helper connection closed during a read; no input was sent.` : `${helperName} helper connection closed. Input may have been delivered; inspect before retrying.`); });
     socket.once('close', async () => {
+      const ended=performance.now();
+      const record=(name,from,to)=>{
+        if(!context?.timings)return;
+        context.timings.push({id:context.timings.length,phase:name,parent:context.phase??null,elapsed_ms:Math.round((to-from)*100)/100});
+      };
+      record('native_identity',began,sentAt??ended);
+      if(sentAt!==undefined)record('native_response',sentAt,repliedAt??ended);
+      if(repliedAt!==undefined)record('native_close',repliedAt,ended);
       clearTimeout(timer); lines.close();
       callerSignal?.removeEventListener('abort', onAbort);
       // A local helper finishes an abandoned read before serving anyone else, so end it as a one-shot read would end.
