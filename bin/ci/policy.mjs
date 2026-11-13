@@ -22,6 +22,7 @@ export const PLAN=Object.freeze([
   {id:'node-native-dependency',kind:'validation',command:['node','--input-type=module','-e','import sharp from "sharp"; await import("@modelcontextprotocol/client"); await import("@modelcontextprotocol/node"); const b=await sharp({create:{width:1,height:1,channels:4,background:"white"}}).png().toBuffer(); if(b.length<8)throw Error("sharp probe failed"); console.log("SDK and synthetic sharp PNG probe passed");'],seconds:60},
   {id:'cli-session',kind:'node-tests',command:['node','--test','--test-reporter=tap','test/cli-session.test.mjs'],seconds:120},
   {id:'dual-phone-unit',kind:'node-tests',command:['node','--test','--test-reporter=tap','bin/dual-phone/session.test.mjs','bin/dual-phone/visual.test.mjs','bin/dual-phone/native-overlap.test.mjs'],seconds:120},
+  {id:'phone-capability-unit',kind:'node-tests',command:['node','--test','--test-reporter=tap','test/ui-query.test.mjs','test/app-actions.test.mjs','test/safari-dom.test.mjs','test/shortcut-callback-relay.test.mjs','test/shortcut-callback-router.test.mjs','test/approval-details.test.mjs','test/app-actions-http.test.mjs','test/phone-capabilities-integration.test.mjs','test/queue-deadline.test.mjs'],seconds:120},
   {id:'native-build-receipt-unit',kind:'python-tests',command:['python3','-I','-B','test/native-build-receipt.test.py','-v'],seconds:120},
   {id:'ci-entrypoint-unit',kind:'node-tests',command:['node','--test','--test-reporter=tap','test/ci-linux.test.mjs','bin/ci/ubuntu-userspace.test.mjs'],seconds:120},
 ]);

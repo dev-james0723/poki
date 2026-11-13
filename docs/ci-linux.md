@@ -120,6 +120,7 @@ Additional explicitly selected checks are:
 - `test/native-build-receipt.test.py`: temporary synthetic source trees and
   candidate executables; no actual native bridge invocation. `python3 -I -B`
   also prevents imported helper bytecode from polluting the checked-out source.
+- The phone-capability stage runs AX predicates, Shortcut journals, Safari DOM, callback relay/router, approval detail, real loopback callback HTTP, MCP integration and queue-deadline suites. These exercise bounded proofs, no-replay behavior, exact device/session/ref binding, callback authority and coordinator boundaries using synthetic phones. They do not prove physical-phone support.
 - `test/ci-linux.test.mjs`: source identity, lock ordering, nonzero completed test
   evidence, fixed coverage and public-report escaping.
 

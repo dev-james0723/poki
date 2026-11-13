@@ -69,3 +69,14 @@ test('official input-lock scheduling preserves the local snapshot deadline while
  finally {gate.resolve();await Promise.allSettled([first,snapshot]);await ctx.queue;}
  assert.equal(reads,0);assert.equal(c.inputLock.reads,0);assert.equal(c.inputLock.holders.size,0);
 });
+
+for(const name of ['query_ui','wait_for_ui','safari_wait_for']) test(name+' counts queue time without releasing unrelated active work',async()=>{
+ const c=new Coordination(),gate=deferred(),entered=deferred();let calls=0,outcome;
+ const owner={cleanup:async()=>({}),dispatch:async()=>{entered.resolve();await gate.promise;return {content:[]};}};
+ const reader={cleanup:async()=>({}),dispatch:async()=>{calls++;return {content:[]};}};
+ const first=c.call(owner,'wait',{});await entered.promise;
+ const reading=c.call(reader,name,{timeout_ms:100}).catch(error=>{outcome=error;});
+ try {await wait(180);assert.equal(outcome?.name,'TimeoutError');assert.equal(calls,0);}
+ finally {gate.resolve();await Promise.allSettled([first,reading]);}
+ assert.equal(calls,0,'expired reads must not execute later');
+});

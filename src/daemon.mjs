@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { join } from 'node:path';
 import { closeLocalHelpers } from './remote.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, writeFile, readFile, unlink, rename, chmod } from 'node:fs/promises';
@@ -11,6 +12,7 @@ import { Devices } from './device.mjs';
 import { stateDir, endpointFile } from './config.mjs';
 import { startUpdateChecks } from './update-check.mjs';
 import { warnIfNativeStale } from './build-info.mjs';
+import { AppActionStore, handleAppActionCallback } from './app-actions.mjs';
 
 const portIndex = process.argv.indexOf('--port');
 const port = portIndex < 0 ? 47825 : Number(process.argv[portIndex + 1]);
@@ -18,6 +20,11 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invali
 await warnIfNativeStale();
 const sessions = new Map();
 const coordinator = new Coordination();
+const callbackEndpointFile = join(stateDir,'app-actions-callback.json');
+coordinator.appActions = new AppActionStore({stateDir});
+coordinator.appActionJournalReady = false;
+try { await coordinator.appActions.initialize(); coordinator.appActionJournalReady = true; }
+catch { console.error(JSON.stringify({event:'shortcut-journal-unavailable'})); }
 const token = process.env.POKI_MCP_TOKEN?.trim() || randomBytes(32).toString('hex');
 // A short token is the only thing standing between the network and the device, and it is cheap
 // to type in a shell by mistake.
@@ -52,6 +59,8 @@ const active = new Set();
 
 async function handle(req, res) {
   if (!validHost(req, res) || !validOrigin(req, res)) return;
+  // This result-only endpoint uses per-operation capabilities, never the MCP token.
+  if (await handleAppActionCallback(req,res,coordinator.appActions)) return;
   const received = Buffer.from(req.headers.authorization ?? '');
   if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
     res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -96,7 +105,7 @@ async function handle(req, res) {
 }
 
 await mkdir(stateDir, { recursive: true, mode: 0o700 });
-const servers = bindHosts.map(() => http.createServer(handle));
+const servers = bindHosts.map(() => http.createServer({maxHeaderSize:49152},handle));
 servers[0].listen(port, bindHosts[0]);
 await once(servers[0], 'listening');
 const actualPort = servers[0].address().port;
@@ -107,6 +116,11 @@ const temporary = `${endpointFile}.${process.pid}.tmp`;
 await writeFile(temporary, JSON.stringify(entry, null, 2), { mode: 0o600, flag: 'wx' });
 await rename(temporary, endpointFile);
 await chmod(endpointFile, 0o600);
+// The result bridge needs only routing metadata, never the general MCP token.
+const callbackTemporary = `${callbackEndpointFile}.${process.pid}.tmp`;
+await writeFile(callbackTemporary,JSON.stringify({url:entry.url,enabled:coordinator.appActionJournalReady,pid:process.pid}),{mode:0o600,flag:'wx'});
+await rename(callbackTemporary,callbackEndpointFile);
+await chmod(callbackEndpointFile,0o600);
 console.log(JSON.stringify({ event: 'ready', url: entry.url, endpointFile, tools: definitions.length }));
 
 const stopUpdateChecks = startUpdateChecks();
@@ -124,6 +138,8 @@ async function stop() {
   await closed;
   const entry = await readFile(endpointFile, 'utf8').then(JSON.parse).catch(() => null);
   if (entry?.pid === process.pid) await unlink(endpointFile);
+  const callbackEntry = await readFile(callbackEndpointFile,'utf8').then(JSON.parse).catch(()=>null);
+  if (callbackEntry?.pid === process.pid) await unlink(callbackEndpointFile);
 }
 process.on('SIGINT', () => void stop());
 process.on('SIGTERM', () => void stop());

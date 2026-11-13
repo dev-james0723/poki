@@ -522,7 +522,7 @@ async fn execute_connected(
     media: &mut Option<InputMedia>,
     observer: &mut Option<ax::Monitor>,
 ) -> Result<Value> {
-    execution_receipt::measure(async {
+    execution_receipt::measure(Box::pin(async {
     if let Request::OpenUrl { url } = request {
         *observer = None;
         close_input(media).await.map_err(not_sent_error)?;
@@ -791,7 +791,7 @@ async fn execute_connected(
         value["native_input"] = json!({"touch_reused":touch_reused,"keyboard_reused":keyboard_reused,"idle_release_ms":5000,"delivery_hold_ms":300});
         value
     })
-    })
+    }))
     .await
 }
 

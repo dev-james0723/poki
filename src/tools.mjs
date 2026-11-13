@@ -4,6 +4,9 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { version } from './build-info.mjs';
 import {workflowSchema,sequenceSchema,appActionSchema,choiceSchema,snapshotQuerySchema} from './workflow-v2-schema.mjs';
+import {uiQueryDefinitions} from './ui-query-schema.mjs';
+import {safariDefinitions} from './safari-dom-schema.mjs';
+import {appActionDefinitions} from './app-actions-schema.mjs';
 
 const catalog = JSON.parse(readFileSync(new URL('./data/tools.json', import.meta.url), 'utf8'));
 catalog.tools.find(t=>t.name==='snapshot_ui').inputSchema.properties.query=z.toJSONSchema(snapshotQuerySchema,{target:'draft-2020-12'});
@@ -29,11 +32,14 @@ const defaultTools = new Set([
   'scroll', 'swipe', 'press_key', 'go_back', 'wait_for', 'handle_alert', 'batch_commands',
   'long_press', 'double_tap', 'drag', 'hide_keyboard', 'press_button',
   'scroll_to', 'terminate_app', 'pinch', 'list_apps', 'get_clipboard',
+  'acquire_device', 'renew_device', 'release_device', 'cancel_device',
+  'query_ui', 'wait_for_ui', 'run_shortcut', 'get_app_action_status', 'list_app_links', 'open_verified_link',
+  'safari_open', 'safari_observe', 'safari_query', 'safari_wait_for', 'safari_act', 'safari_close',
 ]);
-const instructions = 'When the request already says what to do on the device, use batch_commands for launch_app and steps whose targets are already known; use fill without field for a single visible input, and use exact observed labels when a selector is needed; it is usually the only device call needed. Tapping steps wait for their target, and the reply ends with the visible text. With one device available, skip list_devices and select_device; use them when a call reports several devices. Consecutive calls do not require an explicit device lease. Single-step tools remain for exploring an unknown screen.';
+const instructions = 'When the request already says what to do on the device, use batch_commands for launch_app and steps whose targets are already known; use fill without field for a single visible input, and use exact observed labels when a selector is needed; it is usually the only device call needed. Tapping steps wait for their target, and the reply ends with the visible text. With one device available, skip list_devices and select_device; use them when a call reports several devices. Native single-step calls do not require an explicit device lease; Safari DOM tools require acquire_device and the exact returned device/lease_id. Single-step tools remain for exploring an unknown screen.';
 const readOnly = new Set(['snapshot_ui','observe_fast','observe_device','list_devices', 'get_device_info', 'take_screenshot', 'get_foreground_app', 'list_elements', 'list_apps', 'get_clipboard', 'list_crashes', 'get_crash', 'wait_for', 'wait']);
 const guidance = {
-  acquire_device: 'Only needed to keep other sessions off a device across several calls. One batch_commands call already runs without interruption, so a single-call task needs no lease. If you take one, keep the returned lease_id, renew before expiry, then release.',
+  acquire_device: 'Required for Safari DOM sessions; use its exact device and lease_id for every Safari tool. Also useful to keep other sessions off a native device across several calls. One native batch_commands call already runs without interruption. If you take one, keep the returned lease_id, renew before expiry, then release.',
   wait_for: 'The timeout covers device capture, AX, OCR and polling. Success includes the matching observation and its image, so a second screenshot is not needed to inspect the matched state.',
   batch_commands: `Batch known operations. A single visible input can be filled without field. Field and button labels come from observed screen text, in its original language; guesses such as a translated Search label or an unobserved New Tab button require an observation first.
 
@@ -99,6 +105,8 @@ definitions.push(['run_workflow','Execute an explicitly reviewed, bounded workfl
 definitions.push(['tap_sequence','Send 2–8 observed numeric Key elements in one native input session on a physical iPhone with a fixed layout. Requires fixed_layout:true, a fresh native AX foreground, complete geometry, current scene revision and a helper advertising native_tap_sequence. One delivery hold follows the sequence. Returns dispatch evidence only, never application success. Unknown delivery stops without replay. Only numeric keypads are supported; inspect the result.',sequenceSchema,false]);
 definitions.push(['run_app_action','Run an existing, reviewed iPhone Shortcut via the official shortcuts://run-shortcut URL through the ordinary open_url approval path, then check a fresh AX result in expected_app. Does not create a shortcut, add an App Intent to a third-party app, bypass approval, or grant authority for actions inside the shortcut. A visible result condition is required. An uncertain result is not retried.',appActionSchema,false]);
 definitions.push(['choose_action','Read 2–6 current observed navigation candidates and propose one label. A unique exact_label selects locally. use_model defaults false. External selection requires real human approval and a new live snapshot. Optional model_session requests finite app/count/time scope bound to this exact device lease; use_session reuses only that approved scope and never falls back to a new dialog. No screenshot, field values or other screen text is sent. Separate decision, observation and approval timing counters are returned. Proposals never execute taps; the executor must revalidate before input.',choiceSchema,false]);
+
+definitions.push(...uiQueryDefinitions, ...appActionDefinitions, ...safariDefinitions);
 
 // The computer-use profile (POKI_TOOL_PROFILE=cua, cua.mjs): look and do, plus device and status tools.
 for (const [name, description, schema, readOnlyHint] of cua.definitions) definitions.push([name, description, z.fromJSONSchema(schema), readOnlyHint]);

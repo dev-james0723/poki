@@ -60,3 +60,10 @@ test('the public report escapes untrusted strings and states its verification li
   assert.equal(html.includes('<script>'),false);assert.ok(html.includes('&lt;script&gt;'));
   assert.ok(html.includes('Verify the exact deployment commit and build result in Cloudflare'));
 });
+
+test('phone capability unit checks are part of every Cloudflare build',()=>{
+  const stage=PLAN.find(stage=>stage.id==='phone-capability-unit');
+  assert.ok(stage,'New phone capability behavior must be tested by the published pipeline');
+  assert.equal(stage.kind,'node-tests');
+  for(const file of ['test/ui-query.test.mjs','test/app-actions.test.mjs','test/safari-dom.test.mjs','test/shortcut-callback-relay.test.mjs','test/shortcut-callback-router.test.mjs','test/approval-details.test.mjs','test/app-actions-http.test.mjs','test/phone-capabilities-integration.test.mjs','test/queue-deadline.test.mjs']) assert.ok(stage.command.includes(file),file);
+});

@@ -102,6 +102,10 @@ For a physical iPhone, pair it with your Mac over USB first. See [Physical iPhon
 
 Update with `./bin/poki update`. Set `POKI_NO_UPDATE_CHECK=1` to disable the daily anonymous GitHub release check. See [Update](AGENTS.md#update) for the request URL, restart steps, and prebuilt packages.
 
+## Phone capability tools
+
+The native query/wait, correlated Shortcuts, task App Intents, owned navigation, and isolated Safari DOM interfaces are documented in [Phone capabilities](docs/phone-capabilities.md). That guide distinguishes configured capabilities, verified receipts, and physical acceptance, and includes the callback and rollout requirements.
+
 ## Try a task
 
 With Poki Agent, one connected iPhone is selected automatically. With multiple devices, add `--device '<device UUID>'`.
