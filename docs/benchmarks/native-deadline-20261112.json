@@ -1,0 +1,309 @@
+{
+  "date": "2026-11-12",
+  "source_commit": "73d5f0b85e3162c3b2327a45515fd504184761b7",
+  "native_only": true,
+  "jev_calls": 0,
+  "protocol": "Notes -> Reminders -> Gmail; app launch and complete live native AX snapshot per app, identical owned-content checks. Separate native run_code calls vs one native batch; pair 2 reversed. No typing, Save or Send in the timed task.",
+  "attempted_pairs": 3,
+  "completed_pairs": 2,
+  "before_median_ms": 26364,
+  "after_median_ms": 16324,
+  "reduction_percent": 38.08,
+  "speed_ratio": 1.62,
+  "rows": [
+    {
+      "trial": 1,
+      "method": "separate",
+      "caller_ms": 25726,
+      "service_ms": 25709,
+      "success": [
+        {
+          "app": "Notes",
+          "verified": true
+        },
+        {
+          "app": "Reminders",
+          "verified": true
+        },
+        {
+          "app": "Gmail",
+          "verified": true
+        }
+      ],
+      "app_times": [
+        {
+          "app": "Notes",
+          "ms": 5567
+        },
+        {
+          "app": "Reminders",
+          "ms": 9019
+        },
+        {
+          "app": "Gmail",
+          "ms": 11086
+        }
+      ],
+      "phases": {
+        "code_freshness": {
+          "count": 7,
+          "total_ms": 119.29
+        },
+        "target_resolution": {
+          "count": 30,
+          "total_ms": 2.87
+        },
+        "native_helper": {
+          "count": 15,
+          "total_ms": 5.86
+        },
+        "native_request": {
+          "count": 15,
+          "total_ms": 25238.6
+        },
+        "native_identity": {
+          "count": 15,
+          "total_ms": 2.77
+        },
+        "native_response": {
+          "count": 15,
+          "total_ms": 25231.26
+        },
+        "native_close": {
+          "count": 15,
+          "total_ms": 3.98
+        },
+        "accessibility": {
+          "count": 9,
+          "total_ms": 17860.1
+        }
+      }
+    },
+    {
+      "trial": 1,
+      "method": "batch",
+      "caller_ms": 15568,
+      "service_ms": 15541,
+      "success": [
+        {
+          "app": "Notes",
+          "verified": true
+        },
+        {
+          "app": "Reminders",
+          "verified": true
+        },
+        {
+          "app": "Gmail",
+          "verified": true
+        }
+      ],
+      "stop": null,
+      "phases": {
+        "code_freshness": {
+          "count": 7,
+          "total_ms": 131.04
+        },
+        "target_resolution": {
+          "count": 16,
+          "total_ms": 0.49
+        },
+        "native_helper": {
+          "count": 9,
+          "total_ms": 3.37
+        },
+        "native_request": {
+          "count": 9,
+          "total_ms": 15397.33
+        },
+        "native_identity": {
+          "count": 9,
+          "total_ms": 1.26
+        },
+        "native_response": {
+          "count": 9,
+          "total_ms": 15393.37
+        },
+        "native_close": {
+          "count": 9,
+          "total_ms": 2.02
+        },
+        "accessibility": {
+          "count": 3,
+          "total_ms": 4880.99
+        }
+      }
+    },
+    {
+      "trial": 2,
+      "method": "batch",
+      "caller_ms": 17080,
+      "service_ms": 17062,
+      "success": [
+        {
+          "app": "Notes",
+          "verified": true
+        },
+        {
+          "app": "Reminders",
+          "verified": true
+        },
+        {
+          "app": "Gmail",
+          "verified": true
+        }
+      ],
+      "stop": null,
+      "phases": {
+        "code_freshness": {
+          "count": 7,
+          "total_ms": 120.28
+        },
+        "target_resolution": {
+          "count": 16,
+          "total_ms": 0.52
+        },
+        "native_helper": {
+          "count": 9,
+          "total_ms": 3.3
+        },
+        "native_request": {
+          "count": 9,
+          "total_ms": 16928.01
+        },
+        "native_identity": {
+          "count": 9,
+          "total_ms": 8
+        },
+        "native_response": {
+          "count": 9,
+          "total_ms": 16888.17
+        },
+        "native_close": {
+          "count": 9,
+          "total_ms": 31.39
+        },
+        "accessibility": {
+          "count": 3,
+          "total_ms": 5756.65
+        }
+      }
+    },
+    {
+      "trial": 2,
+      "method": "separate",
+      "caller_ms": 27002,
+      "service_ms": 26983,
+      "success": [
+        {
+          "app": "Notes",
+          "verified": true
+        },
+        {
+          "app": "Reminders",
+          "verified": true
+        },
+        {
+          "app": "Gmail",
+          "verified": true
+        }
+      ],
+      "app_times": [
+        {
+          "app": "Notes",
+          "ms": 7329
+        },
+        {
+          "app": "Reminders",
+          "ms": 9433
+        },
+        {
+          "app": "Gmail",
+          "ms": 10183
+        }
+      ],
+      "phases": {
+        "code_freshness": {
+          "count": 7,
+          "total_ms": 102.4
+        },
+        "target_resolution": {
+          "count": 30,
+          "total_ms": 2.31
+        },
+        "native_helper": {
+          "count": 15,
+          "total_ms": 12.41
+        },
+        "native_request": {
+          "count": 15,
+          "total_ms": 26518.82
+        },
+        "native_identity": {
+          "count": 15,
+          "total_ms": 3.33
+        },
+        "native_response": {
+          "count": 15,
+          "total_ms": 26510.91
+        },
+        "native_close": {
+          "count": 15,
+          "total_ms": 3.54
+        },
+        "accessibility": {
+          "count": 9,
+          "total_ms": 16757.83
+        }
+      }
+    },
+    {
+      "trial": 3,
+      "method": "separate",
+      "caller_ms": 36037,
+      "service_ms": 36025,
+      "success": [
+        {
+          "app": "Notes",
+          "verified": false
+        },
+        {
+          "app": "Reminders",
+          "verified": false
+        },
+        {
+          "app": "Gmail",
+          "verified": false
+        }
+      ],
+      "stop": "timeout"
+    },
+    {
+      "trial": 3,
+      "method": "batch",
+      "caller_ms": 23540,
+      "service_ms": 23523,
+      "success": [
+        {
+          "app": "Notes",
+          "verified": true
+        },
+        {
+          "app": "Reminders",
+          "verified": true
+        },
+        {
+          "app": "Gmail",
+          "verified": false
+        }
+      ],
+      "stop": "timeout"
+    }
+  ],
+  "limitations": [
+    "Third pair timed out and is excluded from latency comparison.",
+    "Two complete pairs are a small sample with variable AX latency.",
+    "This measures orchestration using already installed native batching, not a new core patch, typing speed or ten-app trip completion.",
+    "Calendar remains unsaved and Gmail unsent. The time limit stopped further work."
+  ]
+}
