@@ -56,21 +56,26 @@ async function readCondition(ctx,args,binding){
   const snapshot=await snapshotUI(ctx,{
     include_offscreen:false,max_elements:Number.MAX_SAFE_INTEGER,
     timeout_ms:remainingMs(args.timeout_ms),event_stream:false,
-  },{populateInputCache:false});
+  },{populateInputCache:false,preserveUnknownVisibility:true});
   checkWork();
   const current=await ctx.target();
   checkWork();
   const rootVerified=snapshot.truncated===false&&snapshot.root_verified===true
     &&snapshot.geometry_source==='native_application_frame';
-  const complete=snapshot.source_complete===true&&rootVerified;
+  const graphComplete=snapshot.native_source_complete===true&&rootVerified;
+  const uncertain=snapshot.unknown_visibility_elements;
+  const uncertainMatches=Array.isArray(uncertain)?select(uncertain,args.condition.query).length:null;
+  const complete=graphComplete&&snapshot.visibility_complete===true&&Array.isArray(uncertain)&&uncertain.length===0;
+  const queryComplete=graphComplete&&uncertainMatches===0;
   const selected=select(snapshot.elements.filter(element=>visibleIn(element,snapshot)),args.condition.query);
   const receipt={
     matched:false,verification:null,source:snapshot.source,
     device:snapshot.observation.device,revision:snapshot.observation.revision,
     expected_app:args.expected_app,foreground:snapshot.foreground,
-    observation:snapshot.observation,prompt:snapshot.prompt,image_captured:false,
+    observation:snapshot.observation,prompt:snapshot.prompt,prompt_scope:snapshot.prompt_scope,image_captured:false,
     scope:{native_tree_read:'complete',returned:'query_matches',visible_screen:true,
-      complete,source_total:snapshot.source_total??snapshot.total},
+      complete,query_complete:queryComplete,source_total:snapshot.source_total??snapshot.total,
+      unknown_visibility_total:snapshot.unknown_visibility_total??null,unknown_visibility_matches:uncertainMatches},
     condition:args.condition,match_count:selected.length,
     elements:selected.slice(0,returnedLimit),truncated:selected.length>returnedLimit,
     native_ax:snapshot.native_ax,native_completeness:snapshot.native_completeness,
@@ -90,10 +95,12 @@ async function readCondition(ctx,args,binding){
   const exactObject=args.condition.query.object_ids?.length===1;
   const needsCoverage=args.condition.state==='absent'
     ||(args.condition.state!=='present'&&!exactObject);
-  if(needsCoverage&&!complete)return stop(receipt,'incomplete_source');
+  if(args.condition.state!=='present'&&(uncertainMatches===null||uncertainMatches>0))return stop(receipt,'incomplete_source');
+  if(needsCoverage&&!queryComplete)return stop(receipt,'incomplete_source');
   const matched=conditionMatches(selected,args.condition);
   const verificationScope=args.condition.state==='present'?'observed_visible_element'
-    :exactObject&&args.condition.state!=='absent'?'exact_object':'complete_visible_source';
+    :exactObject&&args.condition.state!=='absent'?'exact_object'
+      :complete?'complete_visible_source':'complete_query_scope';
   return {...receipt,matched,verification:matched?'fresh_native_accessibility':null,
     verification_scope:matched?verificationScope:null,
     stop_reason:matched?'matched':'condition_not_met'};

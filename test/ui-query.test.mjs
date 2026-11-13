@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {queryUI as runQuery,waitForUI as runWait} from '../src/ui-query.mjs';
 import {uiQueryDefinitions} from '../src/ui-query-schema.mjs';
 import {work,signal} from '../src/work.mjs';
+import {snapshotUI} from '../src/ax-snapshot.mjs';
 
 // Match the dispatcher work context that owns cancellation and timing spans.
 const inWork=operation=>work.getStore()?operation():work.run({signal:new AbortController().signal,timings:[]},operation);
@@ -191,4 +192,62 @@ test('positive observed-element proofs remain useful when global AX coverage is 
 test('unknown coverage never proves absence even for an exact object id',async()=>{
   const r=await queryUI(fixture([tree([],{complete:undefined})]).ctx,args('absent'));
   assert.equal(r.matched,false);assert.equal(r.stop_reason,'incomplete_source');
+});
+
+test('raw missing-frame privacy prompt blocks proof before viewport filtering',async()=>{
+  const f=fixture([tree([field,{role:'StaticText',label:'Enter iPhone Passcode'}])]);
+  const r=await queryUI(f.ctx,args('field_equals',{field:'value',equals:field.value}));
+  assert.equal(r.matched,false);assert.equal(r.isError,true);
+  assert.equal(r.stop_reason,'prompt');assert.equal(r.prompt.kind,'passcode');
+  assert.equal(r.prompt_scope,'full_native_tree');
+});
+
+test('unknown visibility of a matching raw candidate cannot prove absence',async()=>{
+  const f=fixture([tree([{role:'StaticText',label:'Loading',object_id:'o-loading'}])]);
+  const r=await queryUI(f.ctx,{expected_app:appId,condition:{query:{labels:['Loading']},state:'absent'}});
+  assert.equal(r.matched,false);assert.equal(r.stop_reason,'incomplete_source');
+  assert.equal(r.scope.unknown_visibility_matches,1);assert.equal(r.scope.query_complete,false);
+});
+
+test('a missing-frame duplicate prevents general uniqueness, equality and bounds proof',async()=>{
+  for(const state of ['unique','field_equals','bounds_match']){
+    const extra=state==='field_equals'?{field:'value',equals:field.value}
+      :state==='bounds_match'?{expected_bounds:field.frame,tolerance:0}:{};
+    const f=fixture([tree([field,{role:'TextField',label:'Draft',object_id:'o-other',value:field.value}])]);
+    const r=await queryUI(f.ctx,{expected_app:appId,condition:{query:{labels:['Draft']},state,...extra}});
+    assert.equal(r.matched,false);assert.equal(r.stop_reason,'incomplete_source');
+    assert.equal(r.scope.complete,false);assert.equal(r.scope.unknown_visibility_matches,1);
+  }
+});
+
+test('unrelated unknown geometry retains exact-object and scoped label proof',async()=>{
+  const f=fixture([tree([field,{role:'StaticText',label:'Unrelated',object_id:'o-unknown'}])]);
+  const exact=await queryUI(f.ctx,args('field_equals',{field:'value',equals:field.value}));
+  assert.equal(exact.matched,true);assert.equal(exact.verification_scope,'exact_object');
+  assert.equal(exact.scope.complete,false);assert.equal(exact.scope.unknown_visibility_matches,0);
+  const unique=await queryUI(f.ctx,{expected_app:appId,condition:{query:{labels:['Draft']},state:'unique'}});
+  assert.equal(unique.matched,true);assert.equal(unique.verification_scope,'complete_query_scope');
+  assert.equal(unique.scope.query_complete,true);assert.equal(unique.scope.complete,false);
+});
+
+test('explicitly hidden and definitely offscreen matches do not create visibility uncertainty',async()=>{
+  const f=fixture([tree([
+    field,{role:'TextField',label:'Draft',visible:false},
+    {...field,object_id:'o-offscreen',frame:{x:20,y:2000,width:300,height:50}},
+  ])]);
+  const r=await queryUI(f.ctx,{expected_app:appId,condition:{query:{labels:['Draft']},state:'unique'}});
+  assert.equal(r.matched,true);assert.equal(r.scope.complete,true);
+  assert.equal(r.scope.unknown_visibility_matches,0);assert.equal(r.scope.unknown_visibility_total,0);
+});
+
+
+test('public snapshots distinguish native graph coverage from visible-source coverage',async()=>{
+  const f=fixture([tree([field,{role:'StaticText',label:'Loading'}])]);
+  const r=await inWork(()=>snapshotUI(f.ctx,{}, {populateInputCache:false}));
+  assert.equal(r.native_source_complete,true);assert.equal(r.source_complete,false);
+  assert.equal(r.visibility_complete,false);assert.equal(r.unknown_visibility_total,1);
+  assert.equal(r.unknown_visibility_elements,undefined);assert.equal(r.prompt_scope,'full_native_tree');
+  const clean=await inWork(()=>snapshotUI(fixture().ctx,{}, {populateInputCache:false}));
+  assert.equal(clean.native_source_complete,true);assert.equal(clean.source_complete,true);
+  assert.equal(clean.visibility_complete,true);assert.equal(clean.unknown_visibility_total,0);
 });

@@ -17,7 +17,8 @@ export function axSignature(elements,foreground) {
   const front=[foreground?.pid??null,foreground?.bundle_id??null];
   return JSON.stringify([front,...elements.map(e=>{const f=e.frame??e;return [e.type??e.role,e.label,e.text,e.value,e.focused,Boolean(e.selected),flagOn(e.enabled),f.x,f.y,f.width,f.height];})]);
 }
-const onscreen=(e,v)=>{const f=e.frame??e;return Number.isFinite(f.x)&&Number.isFinite(f.y)&&f.x<v.width&&f.y<v.height&&f.x+f.width>0&&f.y+f.height>0;};
+const usableGeometry=e=>{const f=e.frame??e;return ['x','y','width','height'].every(key=>Number.isFinite(f[key]))&&f.width>0&&f.height>0;};
+const onscreen=(e,v)=>{const f=e.frame??e;return usableGeometry(e)&&f.x<v.width&&f.y<v.height&&f.x+f.width>0&&f.y+f.height>0;};
 const normalizedLabel=text=>text.normalize('NFKC').toLocaleLowerCase().trim();
 
 export async function snapshotUI(ctx,args={},options={}) {
@@ -28,7 +29,10 @@ export async function snapshotUI(ctx,args={},options={}) {
     const tree=await phase('accessibility',()=>ctx.bridge({op:'ax',include_offscreen:args.include_offscreen??false,timeout_ms:args.timeout_ms??6000,event_stream:args.event_stream??false}));
     checkWork();
     if(!Array.isArray(tree.elements)||!tree.elements.length)throw new Error('No native accessibility elements; no screenshot/OCR fallback was performed.');
+    // Prompt text is meaningful even when its AX node has no usable frame.
+    const prompt=promptWarning(tree.elements)??null;
     const viewport=viewportFromAX(tree);
+    const unknownVisibility=tree.elements.filter(e=>(e.type??e.role)!=='Application'&&flagOn(e.visible)&&(!viewport||!usableGeometry(e)));
     const elements=args.include_offscreen||!viewport?tree.elements:tree.elements.filter(e=>onscreen(e,viewport));
     const fromEvent=tree.observation_source==='accessibility_event';
     const sourceAge=Math.max(0,tree.source_age_ms??0);
@@ -43,6 +47,6 @@ export async function snapshotUI(ctx,args={},options={}) {
     const labels=query?.labels&&new Set(query.labels.map(normalizedLabel));
     const projected=query?elements.filter(e=>(!query.roles||query.roles.includes(e.role??e.type))&&(!labels||[e.label,e.text,e.value,e.identifier,e.placeholder].some(t=>typeof t==='string'&&labels.has(normalizedLabel(t))))):elements;
     // Structure-only observations intentionally do not mint screenshot-bound tap refs.
-    return {observation:{id:randomUUID(),device:target.id,revision,source:'accessibility',input_freshness:fromEvent?'requires_live_read':'live_read',request_started_at:started,structure_started_at:fromEvent?null:started,structure_completed_at:finished,capture_started_at:null,capture_completed_at:null,atomic:false},source:'accessibility',image_captured:false,native_runtime:tree.native_runtime??null,native_completeness:tree.completeness??null,native_ax:tree.native_ax?Object.fromEntries(Object.entries(tree.native_ax).filter(([k,v])=>['attempts','total_ms','connect_ms','subscribe_ms','answer_ms','cleanup_ms'].includes(k)&&Number.isFinite(v)&&v>=0&&v<=120000)):null,event_source:tree.observation_source??'accessibility_live',source_age_ms:sourceAge,foreground:tree.foreground??null,width:viewport?.width??null,height:viewport?.height??null,units:'points',geometry_source:viewport?'native_application_frame':null,root_verified:Boolean(viewport),source_complete:tree.complete===true&&(tree.truncated===undefined||tree.truncated===false),source_total:elements.length,elements:projected.slice(0,args.max_elements??160).map(({ref,...e})=>e),total:projected.length,truncated:projected.length>(args.max_elements??160),prompt:promptWarning(elements)??null,...(query?{source_total:elements.length,scope:{native_tree_read:'complete',returned:'query_matches',query}}:{})};
+    return {observation:{id:randomUUID(),device:target.id,revision,source:'accessibility',input_freshness:fromEvent?'requires_live_read':'live_read',request_started_at:started,structure_started_at:fromEvent?null:started,structure_completed_at:finished,capture_started_at:null,capture_completed_at:null,atomic:false},source:'accessibility',image_captured:false,native_runtime:tree.native_runtime??null,native_completeness:tree.completeness??null,native_ax:tree.native_ax?Object.fromEntries(Object.entries(tree.native_ax).filter(([k,v])=>['attempts','total_ms','connect_ms','subscribe_ms','answer_ms','cleanup_ms'].includes(k)&&Number.isFinite(v)&&v>=0&&v<=120000)):null,event_source:tree.observation_source??'accessibility_live',source_age_ms:sourceAge,foreground:tree.foreground??null,width:viewport?.width??null,height:viewport?.height??null,units:'points',geometry_source:viewport?'native_application_frame':null,root_verified:Boolean(viewport),native_source_complete:tree.complete===true&&(tree.truncated===undefined||tree.truncated===false),source_complete:tree.complete===true&&(tree.truncated===undefined||tree.truncated===false)&&unknownVisibility.length===0,source_total:elements.length,unknown_visibility_total:unknownVisibility.length,visibility_complete:unknownVisibility.length===0,...(options.preserveUnknownVisibility?{unknown_visibility_elements:unknownVisibility.map(({ref,...e})=>e)}:{}),elements:projected.slice(0,args.max_elements??160).map(({ref,...e})=>e),total:projected.length,truncated:projected.length>(args.max_elements??160),prompt,prompt_scope:'full_native_tree',...(query?{source_total:elements.length,scope:{native_tree_read:'complete',returned:'query_matches',query}}:{})};
   });
 }
